@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="pioneer3dx" >
+
+  <!-- Import Rviz colors -->
+  <xacro:include filename="$(find multi_robot_scenario)/xacro/materials.xacro" />
+
+  <!-- Import robot -->
+  <xacro:include filename="$(find multi_robot_scenario)/xacro/p3dx/pioneer3dx_body.xacro"/>
+  <xacro:pioneer3dx_body name="chassis" parent="base_link" meshes="package://gazebo_plugins/test/multi_robot_scenario/meshes/p3dx"/>
+
+  <!-- Laser -->
+  <!--220927 실제 작동은 안하고 gazebo상에서 파란색 선-->
+  <xacro:include filename="$(find multi_robot_scenario)/xacro/laser/hokuyo.xacro"/>
+  <xacro:laser name="front_laser" parent="chassis" xyz="0.125 0 0.25" rpy="0 0 0" meshes="package://gazebo_plugins/test/multi_robot_scenario/meshes/laser"/>
+
+
+  <!--위에나 밑에나 같은듯. 근데 위에께 좀더 앞에꺼 감지??-->
+  <!-- GPU Laser
+  <xacro:include filename="$(find multi_robot_scenario)/xacro/laser/hokuyo_gpu.xacro"/>
+  <xacro:laser_gpu name="front_laser" parent="chassis" xyz="0.16 0 0.1" rpy="0 0 0" meshes="package://gazebo_plugins/test/multi_robot_scenario/meshes/laser" />
+    -->
+  <!--밑에 두개가 카메라 부분(rviz상에서도 나오는)-->
+  <xacro:include filename="$(find multi_robot_scenario)/xacro/camera/camera.xacro"/>
+  <xacro:cam name="front_camera" parent="chassis" xyz="0.025 0 0.32" rpy="0 0 0" />
+
+  <xacro:include filename="$(find multi_robot_scenario)/xacro/camera/cameraD.xacro"/>
+  <xacro:camD name="cameraD" parent="chassis" xyz="0.025 0 0.32" rpy="0 0 0" />
+
+  <!--220906 CCTV??-->
+  <!--
+  <xacro:include filename="$(find multi_robot_scenario)/xacro/camera/camera.xacro"/>
+  <xacro:cam name="CCTV1" parent="base_link" xyz="1.025 1 1.32" rpy="0 0 0" />
+  -->
+  <!-- Velodyne -->
+  <xacro:include filename="$(find velodyne_description)/urdf/VLP-16.urdf.xacro"/>
+  <xacro:VLP-16 parent="base_link" name="velodyne" topic="/velodyne_points" hz="10" samples="360" gpu="false" min_angle="-1.57" max_angle="1.57" min_range="0.1">
+  <!--220927 max_range가 velodyne range sensor 길이 조정(rviz상에서 확인 가능)-->
+  <!--xacro:VLP-16 parent="base_link" name="velodyne" topic="/velodyne_points" hz="10" samples="360" gpu="false" min_angle="-1.57" max_angle="1.57" min_range="0.1" max_range="4.0"-->
+    <origin xyz="0.125 0 0.25" rpy="0 0 0" />
+  </xacro:VLP-16>
+
+
+</robot>
