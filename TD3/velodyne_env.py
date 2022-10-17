@@ -366,8 +366,8 @@ class GazeboEnv:
             
         #print('글로벌 distance:', distance, theta, self.goal_x, self.goal_y)
 
-        #robot_state = [skew_x, skew_y, action[0], action[1]]    # 상대거리, 헤딩, v, w
-        robot_state = [distance, angle, action[0], action[1]]    # 상대거리, 헤딩, v, w
+        robot_state = [skew_x, skew_y, action[0], action[1]]    # 상대거리, 헤딩, v, w
+        #robot_state = [distance, angle, action[0], action[1]]    # 상대거리, 헤딩, v, w
         state = np.append(laser_state, robot_state)              # 20 + 4
         # 220927
         '''
@@ -559,8 +559,8 @@ class GazeboEnv:
             theta = -np.pi - theta
             theta = np.pi - theta
         
-        #robot_state = [skew_x, skew_y, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
-        robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
+        robot_state = [skew_x, skew_y, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
+        #robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
         state = np.append(laser_state, robot_state)  # laser 정보(20) + 로봇 state(4)
         # 220927
         if consider_ped:
