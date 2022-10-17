@@ -36,6 +36,8 @@ TIME_DELTA = 0.1
 CONSIDER_GLOBAL_PATH = False # 221004
 DYNAMIC_GLOBAL = False  # 221003
 
+PATH_AS_INPUT = False # 221014
+
 consider_ped = False
 
 
@@ -173,6 +175,7 @@ class GazeboEnv:
         self.path_rviz = None      # rviz에 보여줄 global path 저장
         self.path_as_input = []    # 221010
         self.path_as_input_no = 5  # 221010 5개 샘플
+        self.path_as_init = None
         
 
     # Read velodyne pointcloud and turn it into distance data, then select the minimum value for each angle
@@ -363,7 +366,8 @@ class GazeboEnv:
             
         #print('글로벌 distance:', distance, theta, self.goal_x, self.goal_y)
 
-        robot_state = [distance, theta, action[0], action[1]]    # 상대거리, 헤딩, v, w
+        robot_state = [skew_x, skew_y, action[0], action[1]]    # 상대거리, 헤딩, v, w
+        #robot_state = [distance, angle, action[0], action[1]]    # 상대거리, 헤딩, v, w
         state = np.append(laser_state, robot_state)              # 20 + 4
         # 220927
         '''
@@ -371,8 +375,14 @@ class GazeboEnv:
             state = np.append(laser_state, robot_state)  # 20 + 4 + 12
             state = np.append(state, self.pedsim_agents_distance)  # 20 + 4 + 12
         '''
+        self.path_as_input = self.path_as_init - [self.odom_x, self.odom_y]
+        self.path_as_input = self.path_as_input.reshape(-1,)
         
-        reward = self.get_reward(target, collision, action, min_laser)
+        if PATH_AS_INPUT:
+            reward = self.get_reward_path(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input)
+        else:
+            reward = self.get_reward(target, collision, action, min_laser)
+        
         # 221005
         #reward = self.get_reward_new(target, collision, action, min_laser, self.pre_distance - self.distance)  # 221005
         
@@ -435,14 +445,21 @@ class GazeboEnv:
         
         self.publish_markers(action)   # RVIZ 상 marker publish
         
+        
+
+        
         #print('스텝 패스:',path-4.5, len(path))
         #print('스텝 단일때 패스:',self.path_as_input, len(self.path_as_input), self.path_as_input.shape)
-        self.path_as_input = self.path_as_input.reshape(-1,)
-        state = np.append(state, self.path_as_input)  # 20 + 4 + 12
+        #self.path_as_input = self.path_as_input.reshape(-1,)
+        ##########state = np.append(state, self.path_as_input)  # 20 + 4 + 12
+        
+        ### 221014
+        if PATH_AS_INPUT:
+            state = np.append(state, self.path_as_input)
+        
         return state, reward, done, target
 
     def reset(self):
-        
         # Resets the state of the environment and returns an initial observation.
         rospy.wait_for_service("/gazebo/reset_world")
         try:
@@ -541,8 +558,9 @@ class GazeboEnv:
         if theta < -np.pi:
             theta = -np.pi - theta
             theta = np.pi - theta
-
-        robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
+        
+        robot_state = [skew_x, skew_y, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
+        #robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
         state = np.append(laser_state, robot_state)  # laser 정보(20) + 로봇 state(4)
         # 220927
         if consider_ped:
@@ -623,9 +641,18 @@ class GazeboEnv:
         elif len(path) == self.path_as_input_no:
             self.path_as_input = path - 4.5
         
+        self.path_as_init = self.path_as_input     # raw global path
+        self.path_as_input = self.path_as_init - [self.odom_x, self.odom_y]
+        
+        
         # 5x2 path input -> (10,) flatten
         self.path_as_input = self.path_as_input.reshape(-1,)
-        state = np.append(state, self.path_as_input)  # 20 + 4 + 12
+        ##############3state = np.append(state, self.path_as_input)  # 20 + 4 + 12
+        #print('[init]path_as_input:',self.path_as_input)
+        
+        # 221014
+        if PATH_AS_INPUT:
+            state = np.append(state, self.path_as_input)
         
         return state
 
@@ -812,36 +839,12 @@ class GazeboEnv:
         )
         euler = quaternion.to_euler(degrees=False)
         angle = round(euler[2], 4)
-        (_, _, self.euler) = euler_from_quaternion([self.last_odom.pose.pose.orientation.x, self.last_odom.pose.pose.orientation.y, self.last_odom.pose.pose.orientation.z, self.last_odom.pose.pose.orientation.w])
-        
+        (_, _, self.euler) = euler_from_quaternion([self.last_odom.pose.pose.orientation.x, self.last_odom.pose.pose.orientation.y, self.last_odom.pose.pose.orientation.z, self.last_odom.pose.pose.orientation.w])  
         
         targetPose = np.array([self.goal_x-self.odom_x, self.goal_y-self.odom_y])
-        '''
-        phi = np.arctan2(targetPose[1], targetPose[0]) - self.euler
-        distance = np.linalg.norm(targetPose)
-        print(np.arctan2(targetPose[1], targetPose[0]), self.euler, phi)
-        '''    
-        
         
         inc_x = self.goal_x - self.odom_x
         inc_y = self.goal_y - self.odom_y
-        '''
-        angle_to_goal = math.atan2(inc_y, inc_x)
-        distance = np.sqrt(inc_x**2 + inc_y **2)
-        #print(angle_to_goal)
-        if self.euler <= np.pi:
-            self.euler = (2*np.pi) + self.euler
-        else:
-            self.euler = self.euler - (2*np.pi)
-        
-        if abs(angle_to_goal - self.euler) > 0.1:
-            linear_x = 0.0
-            angular_z = 1.0
-        else:
-            linear_x = 0.5
-            angular_z = 0.0
-        '''
-        
         
         angles = np.arctan2(inc_y,inc_x)
         diff = angles - self.euler
@@ -910,3 +913,32 @@ class GazeboEnv:
         reward = reward_g + reward_c + reward_w + reward_r
 
         return reward        
+    
+    
+    @staticmethod     # 221014  waypoint에 가까워 지면 sparse reward
+    def get_reward_path(target, collision, action, min_laser, odom_x, odom_y, path_as_input):
+        reward_w = 0.0
+        
+        path_as_input = path_as_input.reshape(-1,2)
+        #print(path_as_input)
+        
+        for i, path in enumerate(path_as_input):
+            dist_robot_waypoint = np.sqrt(path[0]**2 + path[1]**2)
+            #print('distance:',i,dist_robot_waypoint)
+            
+            if i != 0 and dist_robot_waypoint <= 0.3:
+                reward_w = 5.0
+                #print('어워드:',i,'번째, ',reward_w)
+                break
+            
+            
+        
+        if target:
+            return 100.0
+        elif collision:
+            return -100.0
+        else:
+            r3 = lambda x: 1 - x if x < 1 else 0.0
+            #print('리워드:',action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2)
+            #return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
+            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 + reward_w

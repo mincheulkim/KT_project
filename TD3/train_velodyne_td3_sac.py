@@ -167,7 +167,6 @@ for i_episode in itertools.count(1):
         
         a_in = [(action[0] + 1) / 2, action[1]]  
 
-        #print('a_in:',action)
         #next_state, reward, done, _ = env.step(action) # Step
         next_state, reward, done, _ = env.step(a_in) # Step
         episode_steps += 1
@@ -176,12 +175,15 @@ for i_episode in itertools.count(1):
 
         # Ignore the "done" signal if it comes from hitting the time horizon.
         # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
-        max_episode_steps = 500
-        mask = 1 if episode_steps == max_episode_steps else float(not done)
         
-        # 221015 unlimited loop exlude
-        if episode_steps > 501:
-            done = True
+        mask = 1 if episode_steps == max_ep else float(not done)
+        done = 1 if episode_steps == max_ep else int(done)
+        
+        
+        
+        ####### 221015 unlimited loop exlude
+        ######if episode_steps > 501:
+        ######    done = True
          
         
 
