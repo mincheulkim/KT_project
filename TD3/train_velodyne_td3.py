@@ -12,7 +12,6 @@ from replay_buffer import ReplayBuffer
 from velodyne_env import GazeboEnv
 
 from gym import spaces
-from model_sac.sac import SAC
 
 def evaluate(network, epoch, agent, eval_episodes=10):
     avg_reward = 0.0
@@ -60,28 +59,23 @@ def evaluate(network, epoch, agent, eval_episodes=10):
     print("..............................................")
     return avg_reward
 
+
+writer = SummaryWriter()
+
 # ref: https://github.com/sfujim/TD3/blob/master/TD3.py
+
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Actor, self).__init__()
 
         self.layer_1 = nn.Linear(state_dim, 800)
         self.layer_2 = nn.Linear(800, 600)
-        self.layer_traj = nn.Linear(10, 600)  # 221010
-        #self.layer_3 = nn.Linear(600, action_dim)
-        self.layer_3 = nn.Linear(600+600, action_dim)
+        self.layer_3 = nn.Linear(600, action_dim)
         self.tanh = nn.Tanh()
 
     def forward(self, s):
-        #print('original:',s, len(s), s.shape)
-        traj = s[:,-10:]
-        s = s[:,:24]
-        #print('s:',s,len(s), s.shape)
-        #print('traj:',traj, len(traj), traj.shape)
         s = F.relu(self.layer_1(s))
         s = F.relu(self.layer_2(s))
-        traj = F.relu(self.layer_traj(traj))
-        s = torch.cat((s, traj), dim =-1)  # 221010
         a = self.tanh(self.layer_3(s))
         return a
 
@@ -90,7 +84,6 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Critic, self).__init__()
 
-        '''
         self.layer_1 = nn.Linear(state_dim, 800)
         self.layer_2_s = nn.Linear(800, 600)
         self.layer_2_a = nn.Linear(action_dim, 600)
@@ -100,23 +93,8 @@ class Critic(nn.Module):
         self.layer_5_s = nn.Linear(800, 600)
         self.layer_5_a = nn.Linear(action_dim, 600)
         self.layer_6 = nn.Linear(600, 1)
-        '''
-        # Q1 architecture
-        self.layer_1 = nn.Linear(state_dim + action_dim, 800)
-        self.layer_2 = nn.Linear(800, 600)
-        self.layer_traj_1 = nn.Linear(10, 600)  # 221010
-        #self.layer_3 = nn.Linear(600, 1)
-        self.layer_3 = nn.Linear(600+600, 1)
-        
-        # Q2 architecture
-        self.layer_4 = nn.Linear(state_dim + action_dim, 800)
-        self.layer_5 = nn.Linear(800, 600)
-        self.layer_traj_2 = nn.Linear(10, 600)  # 221010
-        #self.layer_6 = nn.Linear(600, 1)
-        self.layer_6 = nn.Linear(600+600, 1)
 
     def forward(self, s, a):
-        '''
         s1 = F.relu(self.layer_1(s))
         self.layer_2_s(s1)
         self.layer_2_a(a)
@@ -132,39 +110,8 @@ class Critic(nn.Module):
         s22 = torch.mm(a, self.layer_5_a.weight.data.t())
         s2 = F.relu(s21 + s22 + self.layer_5_a.bias.data)
         q2 = self.layer_6(s2)
-        '''
-        traj = s[:,-10:]
-        s = s[:,:24]
-        
-        sa  = torch.cat([s, a], 1)
-        q1 = F.relu(self.layer_1(sa))
-        q1 = F.relu(self.layer_2(q1))
-        traj_1 = F.relu(self.layer_traj_1(traj))  # 221010
-        q1 = torch.cat((q1, traj_1), dim =-1)  # 221010
-        q1 = self.layer_3(q1)
-        
-        q2 = F.relu(self.layer_4(sa))
-        q2 = F.relu(self.layer_5(q2))
-        traj_2 = F.relu(self.layer_traj_2(traj))  # 221010
-        q2 = torch.cat((q2, traj_2), dim =-1)  # 221010
-        q2 = self.layer_6(q2)
-        
-        
         return q1, q2
-    
-    def Q1(self, s, a):   # 221010
-        traj = s[:,-10:]
-        s = s[:,:24]
 
-        sa = torch.cat([s, a], 1)
-        q1 = F.relu(self.layer_1(sa))
-        q1 = F.relu(self.layer_2(q1))
-        traj_1 = F.relu(self.layer_traj_1(traj))  # 221010
-        q1 = torch.cat((q1, traj_1), dim =-1)  # 221010
-        q1 = self.layer_3(q1)
-        return q1
-
-writer = SummaryWriter()
 
 # TD3 network
 class TD3(object):
@@ -181,15 +128,14 @@ class TD3(object):
         self.critic_target.load_state_dict(self.critic.state_dict())
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters())
 
-        self.max_action = max_action   # 1
-        #self.writer = SummaryWriter()
+        self.max_action = max_action
         self.iter_count = 0
 
-    def get_action(self, state):   # ref: https://github.com/djbyrne/TD3/blob/master/TD3.ipynb
+    def get_action(self, state):
         # Function to get the action from the actor
         state = torch.Tensor(state.reshape(1, -1)).to(device)
         return self.actor(state).cpu().data.numpy().flatten()
-        
+
     # training cycle
     def train(
         self,
@@ -205,8 +151,7 @@ class TD3(object):
         av_Q = 0
         max_Q = -inf
         av_loss = 0
-        ac_act_loss = 0
-        for it in range(iterations):             
+        for it in range(iterations):
             # sample a batch from the replay buffer
             (
                 batch_states,
@@ -224,49 +169,43 @@ class TD3(object):
             # Obtain the estimated action from the next state by using the actor-target
             next_action = self.actor_target(next_state)
 
-            # Add clipped noise to the action
+            # Add noise to the action
             noise = torch.Tensor(batch_actions).data.normal_(0, policy_noise).to(device)
             noise = noise.clamp(-noise_clip, noise_clip)
             next_action = (next_action + noise).clamp(-self.max_action, self.max_action)
 
-            # Calculate the Q values from the critic-target network for the next state-action pair (Compute the target Q value)
+            # Calculate the Q values from the critic-target network for the next state-action pair
             target_Q1, target_Q2 = self.critic_target(next_state, next_action)
 
             # Select the minimal Q value from the 2 calculated values
             target_Q = torch.min(target_Q1, target_Q2)
-            av_Q += torch.mean(target_Q)               # tensorboard
-            max_Q = max(max_Q, torch.max(target_Q))    # tensorboard
+            av_Q += torch.mean(target_Q)
+            max_Q = max(max_Q, torch.max(target_Q))
             # Calculate the final Q value from the target network parameters by using Bellman equation
             target_Q = reward + ((1 - done) * discount * target_Q).detach()
 
-            # Get the Q values of the basis networks with the current parameters  (Get current Q estimates)
+            # Get the Q values of the basis networks with the current parameters
             current_Q1, current_Q2 = self.critic(state, action)
 
-            # Calculate the loss between the current Q value and the target Q value  (Compute critic loss)
+            # Calculate the loss between the current Q value and the target Q value
             loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q)
 
-            # Perform the gradient descent  (Optimize the critic)
+            # Perform the gradient descent
             self.critic_optimizer.zero_grad()
             loss.backward()
             self.critic_optimizer.step()
 
-            # Delayed policy updates
-            if it % policy_freq == 0:    # 2
+            if it % policy_freq == 0:
                 # Maximize the actor output value by performing gradient descent on negative Q values
                 # (essentially perform gradient ascent)
-
-                # Compute actor loss
-                '''
                 actor_grad, _ = self.critic(state, self.actor(state))
-                actor_grad = -actor_grad.mean()                
-                '''
-                actor_grad = -self.critic.Q1(state, self.actor(state)).mean()
+                actor_grad = -actor_grad.mean()
                 self.actor_optimizer.zero_grad()
                 actor_grad.backward()
                 self.actor_optimizer.step()
 
                 # Use soft update to update the actor-target network parameters by
-                # infusing small amount of current parameters  ( Update the frozen target models)
+                # infusing small amount of current parameters
                 for param, target_param in zip(
                     self.actor.parameters(), self.actor_target.parameters()
                 ):
@@ -281,13 +220,11 @@ class TD3(object):
                     target_param.data.copy_(
                         tau * param.data + (1 - tau) * target_param.data
                     )
-                ac_act_loss += actor_grad   # 221006
 
             av_loss += loss
         self.iter_count += 1
         # Write new values for tensorboard
-        writer.add_scalar("(Critic) loss", av_loss / iterations, self.iter_count)
-        writer.add_scalar("Actor loss", ac_act_loss / iterations, self.iter_count)  # 221006
+        writer.add_scalar("loss", av_loss / iterations, self.iter_count)
         writer.add_scalar("Av. Q", av_Q / iterations, self.iter_count)
         writer.add_scalar("Max. Q", max_Q, self.iter_count)
 
@@ -318,20 +255,20 @@ expl_decay_steps = (
 )
 expl_min = 0.1  # Exploration noise after the decay in range [0...expl_noise]
 #batch_size = 40  # Size of the mini-batch
-#batch_size = 256  # 221007
-batch_size = 200  # 221007
+batch_size = 256  # 221007
+#batch_size = 200  # 221007
 #discount = 0.99999  # Discount factor to calculate the discounted future reward (should be close to 1)   # TODO 0.99로 바꿔보기
 discount = 0.99   # 221007
 tau = 0.005  # Soft target update variable (should be close to 0) 
 policy_noise = 0.2  # Added noise for exploration
 noise_clip = 0.5  # Maximum clamping values of the noise 
 policy_freq = 2  # Frequency of Actor network updates (delayed policy updates cycle)
-buffer_size = 1e6  # Maximum size of the buffer
+buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "TD3_velodyne"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
 load_model = True  # Weather to load a stored model   
 random_near_obstacle = False  # To take random actions near obstacles or not
-start_timesteps = 25e6 # 221006   # https://github.com/sfujim/TD3/blob/master/main.py 
+start_timesteps = 2e3 # 221006   # https://github.com/sfujim/TD3/blob/master/main.py 
 
 # Create the network storage folders
 if not os.path.exists("./results"):
@@ -353,11 +290,8 @@ action_dim = 2
 max_action = 1
 
 # Create the network
-network = TD3(state_dim, action_dim, max_action)
-##221006
-action_bound = [[0, -1], [1, 1]] 
-action_bound = spaces.Box(low=np.array([0.0, -1.0]), high=np.array([1.0, 1.0]), dtype=np.float32)
-agent = SAC(num_frame_obs=1, num_goal_obs=2, num_vel_obs=2, action_space=action_bound)
+network = TD3(state_dim, action_dim, max_action) ##221006
+
 # Create a replay buffer
 replay_buffer = ReplayBuffer(buffer_size, seed)
 if load_model:
@@ -390,7 +324,10 @@ while timestep < max_timesteps:   # < 5000000
     # On termination of episode
     if done:
         ############# Train #################33
-        if timestep != 0:        
+        #if timestep != 0:        
+        if timestep != 0 and timestep > start_timesteps:        
+            print('training 타입스텝:',timestep)
+            
             network.train(
                 replay_buffer,
                 episode_timesteps,   
@@ -433,8 +370,18 @@ while timestep < max_timesteps:   # < 5000000
     writer.add_scalar("expl_noise:",expl_noise, timestep)
 
     action = network.get_action(np.array(state))
+    
+    
+    ### 1. Diminishing explorration noise
     action = (action + np.random.normal(0, expl_noise, size=action_dim)).clip(
         -max_action, max_action)   
+    
+    ### 2. fixed exploration noise
+    
+    '''
+    action = (action + np.random.normal(0, 0.2, size=action_dim)).clip(
+        -max_action, max_action)   
+    '''
     
     '''
     if replay_buffer.count > 1024:
@@ -447,8 +394,7 @@ while timestep < max_timesteps:   # < 5000000
             writer.add_scalar('entropy_temprature/alpha', alpha, updates)
             updates += 1
     '''
-    #action_sac = agent.select_action(np.array(state))
-        #action = env.get_global_action()
+
 
 
 
@@ -472,13 +418,11 @@ while timestep < max_timesteps:   # < 5000000
     # Update action to fall in range [0,1] for linear velocity and [-1,1] for angular velocity
     a_in = [(action[0] + 1) / 2, action[1]]
     next_state, reward, done, target = env.step(a_in)
-    #next_state, reward, done, target = env.step(action_sac)
     done_bool = 0 if episode_timesteps + 1 == max_ep else int(done)
     done = 1 if episode_timesteps + 1 == max_ep else int(done)
 
     # Save the tuple in replay buffer
     replay_buffer.add(state, action, reward, done_bool, next_state)
-    #replay_buffer.add(state, action_sac, reward, done_bool, next_state)
 
     # Update the counters
     state = next_state
