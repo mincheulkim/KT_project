@@ -13,7 +13,7 @@ from velodyne_env import GazeboEnv
 
 from gym import spaces
 
-def evaluate(network, epoch, agent, eval_episodes=10):
+def evaluate(network, epoch, eval_episodes=10):
     avg_reward = 0.0
     avg_suc = 0.0
     avg_to = 0.0
@@ -29,7 +29,6 @@ def evaluate(network, epoch, agent, eval_episodes=10):
         done = False
         while not done and count < 501:   
             action = network.get_action(np.array(state))
-            #action = agent.select_action(np.array(state))
             a_in = [(action[0] + 1) / 2, action[1]]
             #state, reward, done, _ = env.step(a_in)
             state, reward, done, target = env.step(a_in)  
@@ -324,8 +323,7 @@ while timestep < max_timesteps:   # < 5000000
     # On termination of episode
     if done:
         ############# Train #################33
-        #if timestep != 0:        
-        if timestep != 0 and timestep > start_timesteps:        
+        if timestep != 0:        
             print('training 타입스텝:',timestep)
             
             network.train(
@@ -350,8 +348,7 @@ while timestep < max_timesteps:   # < 5000000
             print("Validating")
             timesteps_since_eval %= eval_freq
             evaluations.append(
-                #evaluate(network=network, epoch=epoch, eval_episodes=eval_ep)    
-                evaluate(network=network, epoch=epoch, agent=agent, eval_episodes=eval_ep)   
+                evaluate(network=network, epoch=epoch, eval_episodes=eval_ep)    
             )
             network.save(file_name, directory="./pytorch_models")
             np.save("./results/%s" % (file_name), evaluations)
@@ -381,18 +378,6 @@ while timestep < max_timesteps:   # < 5000000
     '''
     action = (action + np.random.normal(0, 0.2, size=action_dim)).clip(
         -max_action, max_action)   
-    '''
-    
-    '''
-    if replay_buffer.count > 1024:
-        for i in range(1):
-            critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(replay_buffer, 512, updates)  # batch_size = 1024, updates = 1
-            writer.add_scalar('loss/critic_1', critic_1_loss, updates)
-            writer.add_scalar('loss/critic_2', critic_2_loss, updates)
-            writer.add_scalar('loss/policy', policy_loss, updates)
-            writer.add_scalar('loss/entropy_loss', ent_loss, updates)
-            writer.add_scalar('entropy_temprature/alpha', alpha, updates)
-            updates += 1
     '''
 
 
@@ -432,7 +417,7 @@ while timestep < max_timesteps:   # < 5000000
     timesteps_since_eval += 1
 
 # After the training is done, evaluate the network and save it
-evaluations.append(evaluate(network=network, epoch=epoch, agent=agent, eval_episodes=eval_ep))
+evaluations.append(evaluate(network=network, epoch=epoch, eval_episodes=eval_ep))
 if save_model:
     network.save("%s" % file_name, directory="./models")
 np.save("./results/%s" % file_name, evaluations)

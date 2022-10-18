@@ -177,6 +177,10 @@ for i_episode in itertools.count(1):
         # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
         
         mask = 1 if episode_steps == max_ep else float(not done)
+        
+        ####done_bool = 0 if episode_timesteps + 1 == max_ep else int(done)
+        
+        
         done = 1 if episode_steps == max_ep else int(done)
         
         

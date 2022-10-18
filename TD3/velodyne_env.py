@@ -367,7 +367,7 @@ class GazeboEnv:
         #print('글로벌 distance:', distance, theta, self.goal_x, self.goal_y)
 
         #robot_state = [skew_x, skew_y, action[0], action[1]]    # 상대거리, 헤딩, v, w
-        robot_state = [distance, angle, action[0], action[1]]    # 상대거리, 헤딩, v, w
+        robot_state = [distance, theta, action[0], action[1]]    # 상대거리, 헤딩, v, w
         state = np.append(laser_state, robot_state)              # 20 + 4
         # 220927
         '''
