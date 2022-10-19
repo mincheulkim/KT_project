@@ -363,11 +363,12 @@ class GazeboEnv:
         if distance < GOAL_REACHED_DIST:
             target = True
             done = True
-            
-        #print('글로벌 distance:', distance, theta, self.goal_x, self.goal_y)
-
-        #robot_state = [skew_x, skew_y, action[0], action[1]]    # 상대거리, 헤딩, v, w
-        robot_state = [distance, theta, action[0], action[1]]    # 상대거리, 헤딩, v, w
+        
+        # 221019
+        local_goal = self.get_local_goal(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.euler)
+        robot_state = [local_goal[0], local_goal[1], action[0], action[1]]    # local_gx, local_gy
+        #robot_state = [distance, theta, action[0], action[1]]    # 상대거리, 헤딩, v, w
+        
         state = np.append(laser_state, robot_state)              # 20 + 4
         # 220927
         '''
@@ -558,9 +559,12 @@ class GazeboEnv:
         if theta < -np.pi:
             theta = -np.pi - theta
             theta = np.pi - theta
+            
+        # 221019
+        local_goal = self.get_local_goal(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.euler)
+        robot_state = [local_goal[0], local_goal[1], 0.0, 0.0]    # local_gx, local_gy
+        #robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
         
-        #robot_state = [skew_x, skew_y, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
-        robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
         state = np.append(laser_state, robot_state)  # laser 정보(20) + 로봇 state(4)
         # 220927
         if consider_ped:
@@ -860,6 +864,13 @@ class GazeboEnv:
         angular_z = diff
 
         return linear_x, angular_z
+    
+    # 221019 로봇 egocentric local goal
+    def get_local_goal(self, odom_x, odom_y, global_x, global_y, theta):
+        local_x = (global_x - odom_x) * np.cos(theta) + (global_y - odom_y) * np.sin(theta)
+        local_y = -(global_x - odom_x) * np.sin(theta) + (global_y - odom_y) * np.cos(theta)   # relative robot aspect to goal(local goal)
+        
+        return [local_x, local_y]
         
 
     @staticmethod
