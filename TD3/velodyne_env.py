@@ -33,10 +33,10 @@ GOAL_REACHED_DIST = 0.3
 COLLISION_DIST = 0.35
 TIME_DELTA = 0.1
 
-CONSIDER_GLOBAL_PATH = False # 221004
 DYNAMIC_GLOBAL = False  # 221003
 
-PATH_AS_INPUT = False # 221014
+#PATH_AS_INPUT = False # 221014
+PATH_AS_INPUT = True # 221019
 
 consider_ped = False
 
@@ -155,6 +155,7 @@ class GazeboEnv:
         self.publisher3 = rospy.Publisher("angular_velocity", MarkerArray, queue_size=1)
         self.publisher4 = rospy.Publisher("waypoints", MarkerArray, queue_size=1)
         self.publisher5 = rospy.Publisher("optimal_goal", MarkerArray, queue_size=3)
+        self.publisher6 = rospy.Publisher("path_as_init", MarkerArray, queue_size=10)   # 221020
         self.velodyne = rospy.Subscriber(
             "/velodyne_points", PointCloud2, self.velodyne_callback, queue_size=1
         )
@@ -269,6 +270,8 @@ class GazeboEnv:
         # 221005 이동하기 전 거리
         distance = np.linalg.norm([self.odom_x - self.goal_x, self.odom_y - self.goal_y])
         self.pre_distance = copy.deepcopy(distance)
+        self.pre_odom_x = copy.deepcopy(self.odom_x)   # 221101
+        self.pre_odom_y = copy.deepcopy(self.odom_y)   # 221101
 
         # Publish the robot action
         vel_cmd = Twist()
@@ -366,8 +369,8 @@ class GazeboEnv:
         
         # 221019
         local_goal = self.get_local_goal(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.euler)
-        robot_state = [local_goal[0], local_goal[1], action[0], action[1]]    # local_gx, local_gy
-        #robot_state = [distance, theta, action[0], action[1]]    # 상대거리, 헤딩, v, w
+        #robot_state = [local_goal[0], local_goal[1], action[0], action[1]]    # local_gx, local_gy
+        robot_state = [distance, theta, action[0], action[1]]    # 상대거리, 헤딩, v, w
         
         state = np.append(laser_state, robot_state)              # 20 + 4
         # 220927
@@ -376,11 +379,13 @@ class GazeboEnv:
             state = np.append(laser_state, robot_state)  # 20 + 4 + 12
             state = np.append(state, self.pedsim_agents_distance)  # 20 + 4 + 12
         '''
-        self.path_as_input = self.path_as_init - [self.odom_x, self.odom_y]
-        self.path_as_input = self.path_as_input.reshape(-1,)
+        self.path_as_input = copy.deepcopy(self.path_as_init)
+        #print('[step]self.path_as_init;',self.path_as_init)   # global paoint에서 path as init 보여줌
+
         
         if PATH_AS_INPUT:
-            reward = self.get_reward_path(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input)
+            #reward = self.get_reward_path(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y)
+            reward = self.get_reward_path_221101(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
         else:
             reward = self.get_reward(target, collision, action, min_laser)
         
@@ -402,61 +407,52 @@ class GazeboEnv:
                     break
                 except:
                     print('예외발생[step]. path를 global goal로 지정')
-                    path = [[self.goal_x + 4.5, self.goal_y+4.5]]
+                    path = [[self.goal_x, self.goal_y]]
                     self.path_i_rviz = path
-                    break
-            
-        if CONSIDER_GLOBAL_PATH:
-            # 220930 path 기반 optimal goal selector
-            for i, p in enumerate(path):
-                xx = p[0]-4.5
-                yy = p[1]-4.5
-                dist_waypoint_goal = np.sqrt((self.goal_x - xx)**2 + (self.goal_y - yy)**2)
-                dist_robot_goal = np.sqrt((self.goal_x - self.odom_x)**2 + (self.goal_y - self.odom_y)**2)
-                #print(dist_waypoint_goal, dist_robot_goal, dist_waypoint_goal <=dist_robot_goal)   # DEBUG
-                if dist_waypoint_goal <= dist_robot_goal:
-                    optimal_g_x = xx
-                    optimal_g_y = yy
-                    
-                    skew_x = optimal_g_x - self.odom_x
-                    skew_y = optimal_g_y - self.odom_y
-                    dot = skew_x * 1 + skew_y * 0
-                    mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
-                    mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-                    beta = math.acos(dot / (mag1 * mag2))
-                    if skew_y < 0:
-                        if skew_x < 0:
-                            beta = -beta
-                        else:
-                            beta = 0 - beta
-                    theta = beta - angle
-                    if theta > np.pi:
-                        theta = np.pi - theta
-                        theta = -np.pi - theta
-                    if theta < -np.pi:
-                        theta = -np.pi - theta
-                        theta = np.pi - theta
-                        
-                    distance = np.linalg.norm([self.odom_x - optimal_g_x, self.odom_y - optimal_g_y])
-                    self.optimal_gx = optimal_g_x
-                    self.optimal_gy = optimal_g_y
-                    state[-4] = distance
-                    state[-3] = theta
                     break
         
         self.publish_markers(action)   # RVIZ 상 marker publish
         
         
-
-        
-        #print('스텝 패스:',path-4.5, len(path))
-        #print('스텝 단일때 패스:',self.path_as_input, len(self.path_as_input), self.path_as_input.shape)
-        #self.path_as_input = self.path_as_input.reshape(-1,)
-        ##########state = np.append(state, self.path_as_input)  # 20 + 4 + 12
+        self.temp_path_as_input = copy.deepcopy(self.path_as_input)
+        # 221019 self.path_as_input을 robot centric으로 변환     
+        for i, p in enumerate(self.path_as_input):
+            xx = p[0]
+            yy = p[1]
+            
+            optimal_g_x = xx
+            optimal_g_y = yy
+            
+            skew_x = optimal_g_x - self.odom_x
+            skew_y = optimal_g_y - self.odom_y
+            dot = skew_x * 1 + skew_y * 0
+            mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
+            mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
+            beta = math.acos(dot / (mag1 * mag2))
+            if skew_y < 0:
+                if skew_x < 0:
+                    beta = -beta
+                else:
+                    beta = 0 - beta
+            theta = beta - angle
+            if theta > np.pi:
+                theta = np.pi - theta
+                theta = -np.pi - theta
+            if theta < -np.pi:
+                theta = -np.pi - theta
+                theta = np.pi - theta
+                
+            distance = np.linalg.norm([self.odom_x - optimal_g_x, self.odom_y - optimal_g_y])
+            
+            self.temp_path_as_input[i][0] = distance
+            self.temp_path_as_input[i][1] = theta
+        #print(self.temp_path_as_input)
+        self.temp_path_as_input = self.temp_path_as_input.reshape(-1,)
         
         ### 221014
         if PATH_AS_INPUT:
-            state = np.append(state, self.path_as_input)
+            state = np.append(state, self.temp_path_as_input)
+            #print('[step]self.temp_path_as_input:',self.temp_path_as_input)
         
         return state, reward, done, target
 
@@ -562,8 +558,8 @@ class GazeboEnv:
             
         # 221019
         local_goal = self.get_local_goal(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.euler)
-        robot_state = [local_goal[0], local_goal[1], 0.0, 0.0]    # local_gx, local_gy
-        #robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
+        #robot_state = [local_goal[0], local_goal[1], 0.0, 0.0]    # local_gx, local_gy
+        robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
         
         state = np.append(laser_state, robot_state)  # laser 정보(20) + 로봇 state(4)
         # 220927
@@ -579,51 +575,14 @@ class GazeboEnv:
             path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
         except:
             print('예외발생. path를 global_goal로 지정')
-            path = [[self.goal_x + 4.5, self.goal_y+4.5]]
+            path = [[self.goal_x, self.goal_y]]
         
         self.path_i_prev = path
         self.path_i_rviz = path
-
-        # 220930 path 기반 optimal goal selector. init단에서는 fixed global path 생성한다        
-        if CONSIDER_GLOBAL_PATH:              
-            for i, p in enumerate(path):
-                xx = p[0]-4.5
-                yy = p[1]-4.5
-                dist_waypoint_goal = np.sqrt((self.goal_x - xx)**2 + (self.goal_y - yy)**2)
-                dist_robot_goal = np.sqrt((self.goal_x - self.odom_x)**2 + (self.goal_y - self.odom_y)**2)
-                if dist_waypoint_goal <= dist_robot_goal:
-                    optimal_g_x = xx
-                    optimal_g_y = yy
-                    
-                    skew_x = optimal_g_x - self.odom_x
-                    skew_y = optimal_g_y - self.odom_y
-                    dot = skew_x * 1 + skew_y * 0
-                    mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
-                    mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-                    beta = math.acos(dot / (mag1 * mag2))
-                    if skew_y < 0:
-                        if skew_x < 0:
-                            beta = -beta
-                        else:
-                            beta = 0 - beta
-                    theta = beta - angle
-                    if theta > np.pi:
-                        theta = np.pi - theta
-                        theta = -np.pi - theta
-                    if theta < -np.pi:
-                        theta = -np.pi - theta
-                        theta = np.pi - theta
-                        
-                    distance = np.linalg.norm([self.odom_x - optimal_g_x, self.odom_y - optimal_g_y])
-                    self.optimal_gx = optimal_g_x
-                    self.optimal_gy = optimal_g_y
-                    state[-4] = distance
-                    state[-3] = theta
-                    break
                 
-        self.publish_markers([0.0, 0.0])
         
         
+        # TODO sampling 방법에 대해 고려
         #############################    
         ############# 221010 고정된 5 사이즈의 path output    self.path_as_input
         self.path_as_input = []
@@ -645,18 +604,52 @@ class GazeboEnv:
         elif len(path) == self.path_as_input_no:
             self.path_as_input = path - 4.5
         
-        self.path_as_init = self.path_as_input     # raw global path
-        self.path_as_input = self.path_as_init - [self.odom_x, self.odom_y]
+        #self.path_as_init = []
+        self.path_as_init = copy.deepcopy(self.path_as_input)     # raw global path
+        #print('[reset]path_as_init:',self.path_as_init)
         
-        
-        # 5x2 path input -> (10,) flatten
-        self.path_as_input = self.path_as_input.reshape(-1,)
-        ##############3state = np.append(state, self.path_as_input)  # 20 + 4 + 12
-        #print('[init]path_as_input:',self.path_as_input)
+        self.publish_markers([0.0, 0.0])
+
+        self.temp_path_as_input = self.path_as_input
+        # 221019 self.path_as_input을 robot centric으로 변환     
+        for i, p in enumerate(self.path_as_input):
+            xx = p[0]
+            yy = p[1]
+            
+            optimal_g_x = xx
+            optimal_g_y = yy
+            
+            skew_x = optimal_g_x - self.odom_x
+            skew_y = optimal_g_y - self.odom_y
+            dot = skew_x * 1 + skew_y * 0
+            mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
+            mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
+            beta = math.acos(dot / (mag1 * mag2))
+            if skew_y < 0:
+                if skew_x < 0:
+                    beta = -beta
+                else:
+                    beta = 0 - beta
+            theta = beta - angle
+            if theta > np.pi:
+                theta = np.pi - theta
+                theta = -np.pi - theta
+            if theta < -np.pi:
+                theta = -np.pi - theta
+                theta = np.pi - theta
+                
+            distance = np.linalg.norm([self.odom_x - optimal_g_x, self.odom_y - optimal_g_y])
+            
+            self.temp_path_as_input[i][0] = distance
+            self.temp_path_as_input[i][1] = theta
+                
+        self.temp_path_as_input = self.temp_path_as_input.reshape(-1,)
+
         
         # 221014
         if PATH_AS_INPUT:
-            state = np.append(state, self.path_as_input)
+            state = np.append(state, self.temp_path_as_input)
+            #print('[reset]self.temp_path_as_input:',self.temp_path_as_input)
         
         return state
 
@@ -814,6 +807,33 @@ class GazeboEnv:
         markerArray5.markers.append(marker)
 
         self.publisher5.publish(markerArray5)
+        
+        # 221020
+        # 5 optimal path
+        markerArray6 = MarkerArray()
+        #print('self.path_as_input:',self.path_as_init)
+        for i, pose in enumerate(self.path_as_init):
+    
+            marker = Marker()
+            marker.id = i
+            marker.header.frame_id = "odom"
+            marker.type = marker.CYLINDER
+            marker.action = marker.ADD
+            marker.scale.x = 0.1
+            marker.scale.y = 0.1
+            marker.scale.z = 0.03
+            marker.color.a = 1.0
+            marker.color.r = 1.0
+            marker.color.g = 0.1
+            marker.color.b = 0.1
+            marker.pose.orientation.w = 1.0
+            marker.pose.position.x = pose[0]
+            marker.pose.position.y = pose[1]
+            marker.pose.position.z = 0
+
+            markerArray6.markers.append(marker)
+
+        self.publisher6.publish(markerArray6)
     
     # 220920    
     def harris_corder_detector(self, rgb_cv_cctv1):
@@ -927,23 +947,23 @@ class GazeboEnv:
     
     
     @staticmethod     # 221014  waypoint에 가까워 지면 sparse reward
-    def get_reward_path(target, collision, action, min_laser, odom_x, odom_y, path_as_input):
+    def get_reward_path(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y):
+        reward_w_sum = 0.0    # 각 웨이포인트별 먼 거리 penalty
         reward_w = 0.0
-        
-        path_as_input = path_as_input.reshape(-1,2)
+        realibility = 1.0
+        #path_as_input = path_as_input.reshape(-1,2)
         #print(path_as_input)
-        
+        #print('로봇 오돔:',odom_x, odom_y)
+        #print('goal:',goal_x, goal_y)
         for i, path in enumerate(path_as_input):
-            dist_robot_waypoint = np.sqrt(path[0]**2 + path[1]**2)
-            #print('distance:',i,dist_robot_waypoint)
-            
-            if i != 0 and dist_robot_waypoint <= 0.3:
-                reward_w = 5.0
-                #print('어워드:',i,'번째, ',reward_w)
-                break
-            
-            
-        
+            #print(i, path)
+            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
+            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
+            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
+            if (dist_robot_goal > dist_waypoint_goal or dist_waypoint_goal < 0.11) and dist_waypoint_robot < 0.35:   # 로봇보다 골에 가까운 웨이포인트가 남아있을 경우
+                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
+                reward_w_sum += 0.5 *realibility               # 완화값 * 신뢰도 * 로봇-웨이포인트 거리(로봇이 웨이포인트와 멀리 있음 페널티)
         if target:
             return 100.0
         elif collision:
@@ -952,4 +972,81 @@ class GazeboEnv:
             r3 = lambda x: 1 - x if x < 1 else 0.0
             #print('리워드:',action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2)
             #return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
-            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 + reward_w
+            #print(action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2, penalty_w_sum)
+            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 - reward_w_sum
+        
+    @staticmethod     
+    def get_reward_path_221101(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y):
+        ## 221101 reward design main idea: R_guldering 참조
+        # R = R_g + R_wpt + R_o + R_v
+        R_g = 0.0
+        R_c = 0.0
+        R_p = 0.0
+        R_w = 0.0
+        R_laser = 0.0
+        R_t = 0.0  # total
+        num_valid_wpt = 0
+        # 1. Success
+        if target:
+            R_g = 100.0
+            
+        # 2. Collision
+        if collision:
+            R_c = -100
+            
+        # 3. Progress
+        R_p = pre_dist - dist
+        
+        # 4. Waypoint
+        realibility = 1.0   # 보이면 1.0, 안보이면 0.2
+        '''
+        ##### sparse waypoint reward ######
+        ##### waypoint에 0.35 영역 내부에 있으면(존재하는 중이면) reward
+        for i, path in enumerate(path_as_input):
+            #print(i, path)
+            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
+            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
+            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
+            if (dist_robot_goal > dist_waypoint_goal or i==4) and dist_waypoint_robot < 0.35:   # 로봇보다 골에 가까운 웨이포인트가 남아있을 경우
+                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
+                #reward_w_sum += 0.5 *realibility               # 완화값 * 신뢰도 * 로봇-웨이포인트 거리(로봇이 웨이포인트와 멀리 있음 페널티)
+                reward = 0.35 - dist_waypoint_robot   # 221101
+                R_w += reward * realibility
+        '''
+                
+        ##### dense waypoint reward #####
+        for i, path in enumerate(path_as_input):
+            #print(i, path)
+            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
+            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
+            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
+            if (dist_robot_goal > dist_waypoint_goal or i==4):   # candidate waypoint 선정
+                num_valid_wpt += 1
+                pre_dist_wpt = np.sqrt((path[0] - pre_odom_x)**2 + (path[1] - pre_odom_y)**2)
+                cur_dist_wpt = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+                diff_dist_wpt = pre_dist_wpt - cur_dist_wpt
+                #print(i, diff_dist_wpt)
+                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
+                if diff_dist_wpt >= 0:
+                    reward = 2 * diff_dist_wpt
+                else:
+                    reward = diff_dist_wpt
+                
+                reward = reward * realibility   # 221101
+                R_w += reward * realibility
+        R_w = R_w / num_valid_wpt
+        
+        # 5. Laser distance
+        if min_laser < 0.5:
+            R_laser = min_laser - 0.5
+        
+        # total
+        R_t = R_g + R_c + R_p + R_p + R_w + R_laser
+        #print('tot:',R_t, '골:',R_g, '충돌:',R_c, '전진:',R_p, '웨이포인트:',R_w,'(',num_valid_wpt,')', '레이저:',R_laser)
+        dx = odom_x - pre_odom_x
+        dy = odom_y - pre_odom_y
+        
+
+        return R_t

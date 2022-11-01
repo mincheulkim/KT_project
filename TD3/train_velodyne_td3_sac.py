@@ -117,8 +117,8 @@ max_action = 1
 
 action_bound = [[0, -1], [1, 1]] 
 action_bound = spaces.Box(low=np.array([0.0, -1.0]), high=np.array([1.0, 1.0]), dtype=np.float32)
-
-PATH_AS_INPUT = False
+PATH_AS_INPUT = True
+#PATH_AS_INPUT = False
 if PATH_AS_INPUT:
     agent = SAC_PATH(state_dim, action_bound, args) 
 else:

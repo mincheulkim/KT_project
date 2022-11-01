@@ -272,11 +272,19 @@ Visualization Manager:
       Name: MarkerArray
       Namespaces:
         "": true
-      Queue Size: 100
+      Queue Size: 1
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /optimal_goal
+      Name: MarkerArray
+      Namespaces:
+        "": true
+      Queue Size: 1
+      Value: true
+      Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /path_as_init
       Name: MarkerArray
       Namespaces:
         "": true

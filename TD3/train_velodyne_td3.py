@@ -13,6 +13,8 @@ from velodyne_env import GazeboEnv
 
 from gym import spaces
 
+PATH_AS_INPUT = False
+
 def evaluate(network, epoch, eval_episodes=10):
     avg_reward = 0.0
     avg_suc = 0.0
@@ -44,6 +46,7 @@ def evaluate(network, epoch, eval_episodes=10):
                 
         if count >= 501:
             to += 1
+        print('[Evaluate]Reward:',avg_reward,'Done:',done,'Success:',suc,'Collision:',col)
     avg_reward /= eval_episodes
     avg_suc = suc / eval_episodes
     avg_to = to / eval_episodes
@@ -66,16 +69,32 @@ writer = SummaryWriter()
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Actor, self).__init__()
-
-        self.layer_1 = nn.Linear(state_dim, 800)
+        
+        if PATH_AS_INPUT:
+            self.layer_0_traj = nn.Linear(10, 400)
+            self.layer_0_s = nn.Linear(state_dim,400)
+            self.layer_1 = nn.Linear(800, 800)
+        else:
+            self.layer_1 = nn.Linear(state_dim, 800)
         self.layer_2 = nn.Linear(800, 600)
         self.layer_3 = nn.Linear(600, action_dim)
         self.tanh = nn.Tanh()
 
     def forward(self, s):
-        s = F.relu(self.layer_1(s))
-        s = F.relu(self.layer_2(s))
-        a = self.tanh(self.layer_3(s))
+        if PATH_AS_INPUT:
+            traj = s[:,-10:]
+            state = s[:,:24]
+            traj = F.relu(self.layer_0_traj(traj))    # 400
+            state = F.relu(self.layer_0_s(state))     # 400
+            s = torch.cat((state, traj), dim=-1)      # 800
+            s = F.relu(self.layer_1(s))
+            s = F.relu(self.layer_2(s))
+            a = self.tanh(self.layer_3(s))
+        
+        else:
+            s = F.relu(self.layer_1(s))
+            s = F.relu(self.layer_2(s))
+            a = self.tanh(self.layer_3(s))
         return a
 
 
@@ -83,32 +102,67 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Critic, self).__init__()
 
-        self.layer_1 = nn.Linear(state_dim, 800)
+        if PATH_AS_INPUT:
+            self.layer_0_traj_A = nn.Linear(10, 400)
+            self.layer_0_s_A = nn.Linear(state_dim,400)
+            self.layer_1 = nn.Linear(800, 800)
+            self.layer_0_traj_B = nn.Linear(10, 400)
+            self.layer_0_s_B = nn.Linear(state_dim,400)
+            self.layer_4 = nn.Linear(800, 800)
+        else:
+            self.layer_1 = nn.Linear(state_dim, 800)
+            self.layer_4 = nn.Linear(state_dim, 800)
         self.layer_2_s = nn.Linear(800, 600)
         self.layer_2_a = nn.Linear(action_dim, 600)
         self.layer_3 = nn.Linear(600, 1)
 
-        self.layer_4 = nn.Linear(state_dim, 800)
         self.layer_5_s = nn.Linear(800, 600)
         self.layer_5_a = nn.Linear(action_dim, 600)
         self.layer_6 = nn.Linear(600, 1)
 
     def forward(self, s, a):
-        s1 = F.relu(self.layer_1(s))
-        self.layer_2_s(s1)
-        self.layer_2_a(a)
-        s11 = torch.mm(s1, self.layer_2_s.weight.data.t())
-        s12 = torch.mm(a, self.layer_2_a.weight.data.t())
-        s1 = F.relu(s11 + s12 + self.layer_2_a.bias.data)
-        q1 = self.layer_3(s1)
+        if PATH_AS_INPUT:
+            traj = s[:,-10:]
+            state = s[:,:24]
+            traj1 = F.relu(self.layer_0_traj_A(traj))
+            state1 = F.relu(self.layer_0_s_A(state))
+            s1 = torch.cat((state1, traj1), dim = -1)
+            s1 = F.relu(self.layer_1(s1))
+            self.layer_2_s(s1)
+            self.layer_2_a(a)
+            s11 = torch.mm(s1, self.layer_2_s.weight.data.t())
+            s12 = torch.mm(a, self.layer_2_a.weight.data.t())
+            s1 = F.relu(s11 + s12 + self.layer_2_a.bias.data)
+            q1 = self.layer_3(s1)
+            
+            traj2 = F.relu(self.layer_0_traj_B(traj))
+            state2 = F.relu(self.layer_0_s_B(state))
+            s2 = torch.cat((state2, traj2), dim = -1)
+            s2 = F.relu(self.layer_4(s2))
+            self.layer_5_s(s2)
+            self.layer_5_a(a)
+            s21 = torch.mm(s2, self.layer_5_s.weight.data.t())
+            s22 = torch.mm(a, self.layer_5_a.weight.data.t())
+            s2 = F.relu(s21 + s22 + self.layer_5_a.bias.data)
+            q2 = self.layer_6(s2)
+            
+            pass
+        else:
+            s1 = F.relu(self.layer_1(s))
+            self.layer_2_s(s1)
+            self.layer_2_a(a)
+            s11 = torch.mm(s1, self.layer_2_s.weight.data.t())
+            s12 = torch.mm(a, self.layer_2_a.weight.data.t())
+            s1 = F.relu(s11 + s12 + self.layer_2_a.bias.data)
+            q1 = self.layer_3(s1)
 
-        s2 = F.relu(self.layer_4(s))
-        self.layer_5_s(s2)
-        self.layer_5_a(a)
-        s21 = torch.mm(s2, self.layer_5_s.weight.data.t())
-        s22 = torch.mm(a, self.layer_5_a.weight.data.t())
-        s2 = F.relu(s21 + s22 + self.layer_5_a.bias.data)
-        q2 = self.layer_6(s2)
+            s2 = F.relu(self.layer_4(s))
+            self.layer_5_s(s2)
+            self.layer_5_a(a)
+            s21 = torch.mm(s2, self.layer_5_s.weight.data.t())
+            s22 = torch.mm(a, self.layer_5_a.weight.data.t())
+            s2 = F.relu(s21 + s22 + self.layer_5_a.bias.data)
+            q2 = self.layer_6(s2)
         return q1, q2
 
 
@@ -324,7 +378,6 @@ while timestep < max_timesteps:   # < 5000000
     if done:
         ############# Train #################33
         if timestep != 0:        
-            print('training 타입스텝:',timestep)
             
             network.train(
                 replay_buffer,
@@ -353,6 +406,8 @@ while timestep < max_timesteps:   # < 5000000
             network.save(file_name, directory="./pytorch_models")
             np.save("./results/%s" % (file_name), evaluations)
             epoch += 1
+
+        print('[',timestep,']Reward:',episode_reward,'Done:',done)
 
         state = env.reset()
         done = False
