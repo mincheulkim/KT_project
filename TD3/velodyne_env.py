@@ -7,6 +7,7 @@ import subprocess
 import time
 import copy
 import planner  # 220928
+import planner_warehouse  # 221102
 from os import path
 
 import numpy as np
@@ -37,6 +38,8 @@ DYNAMIC_GLOBAL = False  # 221003
 
 #PATH_AS_INPUT = False # 221014
 PATH_AS_INPUT = True # 221019
+
+PLANNER_WAREHOUSE = True # 221102
 
 consider_ped = False
 
@@ -78,6 +81,51 @@ def check_pos(x, y):
     if x > 4.5 or x < -4.5 or y > 4.5 or y < -4.5:
         goal_ok = False
 
+    return goal_ok
+
+
+def check_pos_warehouse(x, y):   # 221102
+    goal_ok = True
+    # wall2
+    if -9.0 > x > -1.0 and -6.0 > y > -10.0:
+        goal_ok = False
+    # wall3
+    if -9.0 > x > -10.0 and 9.0 > y > -10.0:
+        goal_ok = False
+    # NW three pannels
+    if -0.0 > x > -7 and 7.3 > y > 5.5:
+        goal_ok = False
+    # NW two pannels
+    if -8.8 > x > -4.2 and 3 > y > 1:
+        goal_ok = False
+    # control panel
+    if 2.0701+0.4336 > x > 2.0701-0.4336 and 1.1622+0.3 > y > 1.1622-0.3:
+        goal_ok = False
+    # rack1
+    if 7.35056+0.4222 > x > 7.35056-0.4222 and 1.7443+0.9779 > y > 1.7443-0.9779:
+        goal_ok = False
+    # rack2
+    if 5.36795+0.4222 > x > 5.36795-0.4222 and 1.7443+0.9779 > y > 1.7443-0.9779:
+        goal_ok = False
+    # rack3
+    if 7.001420+0.4222 > x > 7.001420-0.4222 and -7.646700+1.95581 > y > -7.646700-1.95581:
+        goal_ok = False
+    # rack4
+    if 4.97338+0.4222 > x > 4.97338-0.4222 and -7.646700+1.95581 > y > -7.646700-1.95581:
+        goal_ok = False
+    # rack5
+    if 2.669490+0.4222 > x > 2.669490-0.4222 and -7.646700+1.95581 > y > -7.646700-1.95581:
+        goal_ok = False
+    # pole1
+    if 5.02174+0.245805 > x > 5.02174-0.245805 and -2.39478+0.245805 > y > -2.39478-0.245805:
+        goal_ok = False
+    # pole2
+    if 0.470710+0.245805 > x > 0.470710-0.245805 and -2.39478+0.245805 > y > -2.39478-0.245805:
+        goal_ok = False
+    # pole3
+    if -3.93786+0.245805 > x > -3.93786-0.245805 and -2.39478+0.245805 > y > -2.39478-0.245805:
+        goal_ok = False
+        
     return goal_ok
 
 
@@ -265,7 +313,7 @@ class GazeboEnv:
 
 
     # Perform an action and read a new state
-    def step(self, action):
+    def step(self, action, episode_steps):
         target = False
         # 221005 이동하기 전 거리
         distance = np.linalg.norm([self.odom_x - self.goal_x, self.odom_y - self.goal_y])
@@ -296,9 +344,11 @@ class GazeboEnv:
             print("/gazebo/pause_physics service call failed")
             
         # 220915 CCTV1 정보 cv로 받아옴
+        '''
         self.rgb_cv_cctv1 = self.GetRGBImageObservation()   # shape: (512, 512, 3)
         cctv = cv2.resize(self.rgb_cv_cctv1, dsize=(512,512))
         cctv = cv2.cvtColor(cctv, cv2.COLOR_BGR2RGB) 
+        '''
         ## (Optional) cctv visualize
         #cv2.imshow('cctv1', cctv)
         #cv2.waitKey(1)
@@ -394,15 +444,20 @@ class GazeboEnv:
         
         #220928 path 생성
         # 정적 생성(option 1)
-        path = self.path_i_prev   # reset단에 최초로 생성된 global path
-        self.path_i_rviz = path
+        if DYNAMIC_GLOBAL is not True:
+            path = self.path_i_prev   # reset단에 최초로 생성된 global path
+            self.path_i_rviz = path
         
         # 동적 생성(option 2)
         # try, excep: https://dojang.io/mod/page/view.php?id=2398
-        if DYNAMIC_GLOBAL:
+        #if DYNAMIC_GLOBAL:
+        if episode_steps%20 ==0 and DYNAMIC_GLOBAL:
             while True:
                 try:
-                    path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
+                    if PLANNER_WAREHOUSE:
+                        path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                    else:
+                        path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
                     self.path_i_rviz = path
                     break
                 except:
@@ -410,6 +465,42 @@ class GazeboEnv:
                     path = [[self.goal_x, self.goal_y]]
                     self.path_i_rviz = path
                     break
+                # TODO sampling 방법에 대해 고려
+            #############################    
+            ############# 221010 고정된 5 사이즈의 path output    self.path_as_input
+            self.path_as_input = []
+            for i in range(self.path_as_input_no):
+                self.path_as_input.append([self.goal_x, self.goal_y])
+                
+            self.path_as_input = np.asarray(self.path_as_input)
+            if PLANNER_WAREHOUSE:
+                # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+                if len(path) < self.path_as_input_no:
+                    #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
+                    self.path_as_input[:len(path), :] = path-10.0
+                
+                # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+                elif len(path) > self.path_as_input_no:   # 8>5
+                    self.path_as_input = path[-5:, :]-10.0
+                    
+                
+                # 만약 크기 같다면: 
+                elif len(path) == self.path_as_input_no:
+                    self.path_as_input = path - 10.0
+            else:
+                # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+                if len(path) < self.path_as_input_no:
+                    #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
+                    self.path_as_input[:len(path), :] = path-4.5
+                
+                # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+                elif len(path) > self.path_as_input_no:   # 8>5
+                    self.path_as_input = path[-5:, :]-4.5
+                
+                # 만약 크기 같다면: 
+                elif len(path) == self.path_as_input_no:
+                    self.path_as_input = path - 4.5
+            self.path_as_init = self.path_as_input
         
         self.publish_markers(action)   # RVIZ 상 marker publish
         
@@ -473,9 +564,14 @@ class GazeboEnv:
         y = 0
         position_ok = False
         while not position_ok:
-            x = np.random.uniform(-4.5, 4.5)
-            y = np.random.uniform(-4.5, 4.5)
-            position_ok = check_pos(x, y)
+            if PLANNER_WAREHOUSE:
+                x = np.random.uniform(-9.5, 9.5)
+                y = np.random.uniform(-9.5, 9.5)
+                position_ok = check_pos(x, y)
+            else:
+                x = np.random.uniform(-4.5, 4.5)
+                y = np.random.uniform(-4.5, 4.5)
+                position_ok = check_pos(x, y)
         object_state.pose.position.x = x
         object_state.pose.position.y = y
         #object_state.pose.position.z = 0.
@@ -513,7 +609,7 @@ class GazeboEnv:
         self.distOld = math.sqrt(math.pow(self.odom_x - self.goal_x, 2) + math.pow(self.odom_y - self.goal_y, 2))
         
         # 220915 cctv1 cv정보 받아옴
-        self.rgb_cv_cctv1 = self.GetRGBImageObservation()
+        #self.rgb_cv_cctv1 = self.GetRGBImageObservation()
         
         # 220927 pedsim 정보 받아옴
         if self.pedsim_agents_list != None:
@@ -572,7 +668,10 @@ class GazeboEnv:
             
         #220928 최초 initial path 생성
         try:
-            path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+            if PLANNER_WAREHOUSE:
+                path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+            else:
+                path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
         except:
             print('예외발생. path를 global_goal로 지정')
             path = [[self.goal_x, self.goal_y]]
@@ -590,19 +689,32 @@ class GazeboEnv:
             self.path_as_input.append([self.goal_x, self.goal_y])
             
         self.path_as_input = np.asarray(self.path_as_input)
-        
-        # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
-        if len(path) < self.path_as_input_no:
-            #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
-            self.path_as_input[:len(path), :] = path-4.5
-        
-        # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
-        elif len(path) > self.path_as_input_no:   # 8>5
-            self.path_as_input = path[-5:, :]-4.5
-        
-        # 만약 크기 같다면: 
-        elif len(path) == self.path_as_input_no:
-            self.path_as_input = path - 4.5
+        if PLANNER_WAREHOUSE:
+            # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+            if len(path) < self.path_as_input_no:
+                #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
+                self.path_as_input[:len(path), :] = path-10.0
+            
+            # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+            elif len(path) > self.path_as_input_no:   # 8>5
+                self.path_as_input = path[-5:, :]-10.0
+            
+            # 만약 크기 같다면: 
+            elif len(path) == self.path_as_input_no:
+                self.path_as_input = path - 10.0
+        else:
+            # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+            if len(path) < self.path_as_input_no:
+                #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
+                self.path_as_input[:len(path), :] = path-4.5
+            
+            # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+            elif len(path) > self.path_as_input_no:   # 8>5
+                self.path_as_input = path[-5:, :]-4.5
+            
+            # 만약 크기 같다면: 
+            elif len(path) == self.path_as_input_no:
+                self.path_as_input = path - 4.5
         
         #self.path_as_init = []
         self.path_as_init = copy.deepcopy(self.path_as_input)     # raw global path
@@ -665,7 +777,10 @@ class GazeboEnv:
         while not goal_ok:
             self.goal_x = self.odom_x + random.uniform(self.upper, self.lower)  
             self.goal_y = self.odom_y + random.uniform(self.upper, self.lower) # [-5, 5] -> [-10, 10]
-            goal_ok = check_pos(self.goal_x, self.goal_y)
+            if PLANNER_WAREHOUSE:
+                goal_ok = check_pos_warehouse(self.goal_x, self.goal_y)
+            else: 
+                goal_ok = check_pos(self.goal_x, self.goal_y)
 
     def random_box(self):
         # Randomly change the location of the boxes in the environment on each reset to randomize the training
@@ -776,8 +891,12 @@ class GazeboEnv:
             marker.color.g = 1.0
             marker.color.b = 0.0
             marker.pose.orientation.w = 1.0
-            marker.pose.position.x = pose[0] - 4.5
-            marker.pose.position.y = pose[1] - 4.5
+            if PLANNER_WAREHOUSE:
+                marker.pose.position.x = pose[0] - 10
+                marker.pose.position.y = pose[1] - 10 
+            else:
+                marker.pose.position.x = pose[0] - 4.5
+                marker.pose.position.y = pose[1] - 4.5
             marker.pose.position.z = 0
 
             markerArray4.markers.append(marker)

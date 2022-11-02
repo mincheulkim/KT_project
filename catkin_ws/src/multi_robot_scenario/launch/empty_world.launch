@@ -14,9 +14,9 @@
   <arg name="physics" default="ode"/>
   <arg name="verbose" default="false"/>
   <!--환경 불러오는 줄-->
-  <arg name="world_name" default="TD3.world"/>
+  <!--arg name="world_name" default="TD3.world"/-->
   <!--arg name="world_name" default="cafe.world"/-->  <!--220923 gazebo default cafe-->
-  <!--arg name="world_name" default="warehouse.world"/-->  <!--220923 gazebo default cafe-->
+  <arg name="world_name" default="warehouse.world"/>  <!--220923 gazebo default cafe-->
   <!--arg name="world_name" default="TD3_empty.world"/-->  <!--220923 gazebo default cafe-->
   <arg name="respawn_gazebo" default="true"/>
   <arg name="use_clock_frequency" default="false"/>

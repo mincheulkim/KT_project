@@ -184,7 +184,6 @@ def get_obstacle_map(pts, pedsim_agent_list, r_x, r_y):
     obs = np.logical_or(obs, obs7)
     
     # 좌하단 삼각형(as 사각형)
-    
     obs8 = check_in_poly(pts, RES*create_rect(-2.38953+map_bias, -3.28527+1.5+map_bias, 0.15, 2).reshape(-1,2))
     obs = np.logical_or(obs, obs8)
     

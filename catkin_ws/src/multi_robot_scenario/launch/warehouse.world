@@ -182,6 +182,48 @@
             </friction>
           </surface>
         </collision>
+        <collision name='wall_North'>
+          <pose frame=''>0.0 10.0 3.48855 0 -0 0</pose>
+          <geometry>
+            <box>
+              <size>20.0 0.2 6.97771</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='wall_East'>
+          <pose frame=''>10.0 0.0 3.48855 0 -0 0</pose>
+          <geometry>
+            <box>
+              <size>0.2 20.0 6.97771</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
         <collision name='rack1'>
           <pose frame=''>7.35056 1.7443 1.41643 0 -0 0</pose>
           <geometry>
@@ -482,7 +524,8 @@
         <enable_wind>0</enable_wind>
         <kinematic>0</kinematic>
       </link>
-      <pose frame=''>-0.040107 0.052292 0 0 -0 0</pose>
+      <!--pose frame=''>-0.040107 0.052292 0 0 -0 0</pose-->
+      <pose frame=''>0.0 0.0 0 0 -0 0</pose>
     </model>
     <!-- 图右下方的垃圾桶 * 6 -->
     <model name='workcell_bin'>
@@ -2014,7 +2057,7 @@
 
     <!--create moving objects -->
 
-      <actor name="actor1">
+      <!--actor name="actor1">
       <link name='link'>
         <inertial>
           <mass>1</mass>
@@ -2182,8 +2225,9 @@
              </waypoint>
           </trajectory>
         </script>
-      </actor>
+      </actor-->
 
-      
+  <plugin name="ActorPosesPlugin" filename="libActorPosesPlugin.so">
+        </plugin>     
   </world>
 </sdf>

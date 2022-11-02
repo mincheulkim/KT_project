@@ -170,7 +170,7 @@ for i_episode in itertools.count(1):
         a_in = [(action[0] + 1) / 2, action[1]]  
 
         #next_state, reward, done, _ = env.step(action) # Step
-        next_state, reward, done, _ = env.step(a_in) # Step
+        next_state, reward, done, _ = env.step(a_in, episode_steps) # 221102
         episode_steps += 1
         total_numsteps += 1
         episode_reward += reward
@@ -226,7 +226,8 @@ for i_episode in itertools.count(1):
                 action = agent.select_action(state, evaluate=True)
                 a_in = [(action[0] + 1) / 2, action[1]]  
                 #next_state, reward, done, _ = env.step(action)
-                next_state, reward, done, _ = env.step(a_in)
+                #next_state, reward, done, _ = env.step(a_in)
+                next_state, reward, done, _ = env.step(a_in, flag)
                 episode_reward += reward
 
 
