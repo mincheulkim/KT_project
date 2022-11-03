@@ -351,7 +351,7 @@ def main(r_x, r_y, g_x, g_y, pedsim_agents_list):   # [-4.5 ~ 4.5],
     rpm2 = 10
     clearance = 0.1
     
-    PLOT = True    # visualize 할건지
+    PLOT = False    # visualize 할건지
     GOAL_RADIUS = round(0.25 *RES)
     ROBOT_RADIUS = round(0.2 *RES)
     CLEARANCE = round(clearance *RES)
