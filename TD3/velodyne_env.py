@@ -34,7 +34,7 @@ GOAL_REACHED_DIST = 0.3
 COLLISION_DIST = 0.35
 TIME_DELTA = 0.1
 
-DYNAMIC_GLOBAL = False  # 221003
+DYNAMIC_GLOBAL = True  # 221003
 
 #PATH_AS_INPUT = False # 221014
 PATH_AS_INPUT = True # 221019
@@ -451,7 +451,7 @@ class GazeboEnv:
         # 동적 생성(option 2)
         # try, excep: https://dojang.io/mod/page/view.php?id=2398
         #if DYNAMIC_GLOBAL:
-        if episode_steps%20 ==0 and DYNAMIC_GLOBAL:
+        if DYNAMIC_GLOBAL and episode_steps%20 ==0:
             while True:
                 try:
                     if PLANNER_WAREHOUSE:
@@ -463,6 +463,7 @@ class GazeboEnv:
                 except:
                     print('예외발생[step]. path를 global goal로 지정')
                     path = [[self.goal_x, self.goal_y]]
+                    path = np.asarray(path)   # 221103
                     self.path_i_rviz = path
                     break
                 # TODO sampling 방법에 대해 고려
@@ -675,10 +676,10 @@ class GazeboEnv:
         except:
             print('예외발생. path를 global_goal로 지정')
             path = [[self.goal_x, self.goal_y]]
+            path = np.asarray(path)   # 221103
         
         self.path_i_prev = path
         self.path_i_rviz = path
-                
         
         
         # TODO sampling 방법에 대해 고려
@@ -687,7 +688,6 @@ class GazeboEnv:
         self.path_as_input = []
         for i in range(self.path_as_input_no):
             self.path_as_input.append([self.goal_x, self.goal_y])
-            
         self.path_as_input = np.asarray(self.path_as_input)
         if PLANNER_WAREHOUSE:
             # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
@@ -702,6 +702,7 @@ class GazeboEnv:
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
                 self.path_as_input = path - 10.0
+        
         else:
             # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
             if len(path) < self.path_as_input_no:
@@ -715,7 +716,6 @@ class GazeboEnv:
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
                 self.path_as_input = path - 4.5
-        
         #self.path_as_init = []
         self.path_as_init = copy.deepcopy(self.path_as_input)     # raw global path
         #print('[reset]path_as_init:',self.path_as_init)

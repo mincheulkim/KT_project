@@ -25,7 +25,8 @@ import sys
 
 class RrtApf:
     #def __init__(self, start, goal, obs_map, offset=3, maxIter=5000, goal_radius=15, animate=False):
-    def __init__(self, start, goal, obs_map, offset=6, maxIter=5000, goal_radius=15, animate=False):
+    #def __init__(self, start, goal, obs_map, offset=6, maxIter=5000, goal_radius=15, animate=False):   # obs_map = conf
+    def __init__(self, start, goal, obs_map, offset=6, maxIter=15000, goal_radius=15, animate=False):   # 221103
         self.start = start
         self.goal = goal
         self.animate = animate                      # boolean variable to show expanding rrt search tree
@@ -36,13 +37,14 @@ class RrtApf:
         self.offset = offset                        # distance between selected random nodes and it's 2 neighbots
         self.came_from = {tuple(self.start): None}  # dictionary for back tracking found path
         self.distance_mat = ndimage.distance_transform_edt(obs_map/255 == 0)    # stores distance of each node from obstacle
-        self.distance_mat = self.distance_mat / 40 + 0.00000001
+        self.distance_mat = self.distance_mat / 40 + 0.00000001   # 201, 201
+        self.pedsim_list = None
 
-    def get_nearest_node(self, node):
-        min_dist = np.inf
+    def get_nearest_node(self, node):    # node = picked random node
+        min_dist = np.inf                # 최소 거리 일단 무한대
         nearest_node = None
-        for node_i in self.nodes:
-            dist = np.linalg.norm(node - node_i)
+        for node_i in self.nodes:        # 최초 단에는 start위치만 들어가 있음
+            dist = np.linalg.norm(node - node_i)   # self.nodes에서 가장 거리 가까운 놈을 셀렉
             if dist < min_dist:
                 min_dist = dist
                 nearest_node = node_i
@@ -51,16 +53,34 @@ class RrtApf:
     def calculate_apf(self, valid_nodes, attraction=0.5, repulsion=0.5):
         least_potential = np.inf
         new_node = None
-
+        #print('valid nodes:',valid_nodes)
         for node in valid_nodes:
             distance_to_goal = np.linalg.norm(node - self.goal)
             positive_potential = attraction * distance_to_goal
             negative_potential = repulsion / self.distance_mat[node[1]][node[0]]
-            total_potential = positive_potential + negative_potential
+            
+            # 1. Realibility (as visibility)
+            realibility = 1.0
+            # 2. Density     node 주변에 사람들의 거리를 sum
+            density_sum = 0.0
+            #print(self.pedsim_list)
+            if self.pedsim_list != None:
+                for i, ped in enumerate(self.pedsim_list):
+                    px = RES*(ped[0] + 10)
+                    py = RES*(ped[1] + 10)
+                    distance = np.sqrt((node[0]-px)**2+(node[1])**2)
+                    distance = distance / 10
+                    #print(i, node, distance, ped, [px,py])
+                    density_sum += 1 / distance
+                    
+            #total_potential = positive_potential + negative_potential
+            total_potential = positive_potential + negative_potential + density_sum ## 221103
             if total_potential < least_potential:
                 least_potential = total_potential
                 new_node = node
-
+            
+            print('node:',node,'p_p:',positive_potential,'n_p:',negative_potential, 'p_p:',density_sum)
+        #print('new nodes:',new_node)
         return new_node
 
     def get_random_node(self):
@@ -70,11 +90,11 @@ class RrtApf:
         y = np.random.randint(0, self.distance_mat.shape[0])
         return np.array([x, y])
 
-    def get_new_node(self, node, parent_node):
+    def get_new_node(self, node, parent_node):           # random node, nearest node
 
         if np.array_equal(node, parent_node): return node
 
-        direction = node - parent_node
+        direction = node - parent_node             # random node -> nearest node
         direction_norm = (direction / np.linalg.norm(direction)) * self.offset
         new_node_center = (parent_node + direction_norm).round().astype(int)
 
@@ -85,7 +105,7 @@ class RrtApf:
             slope = (node[1] - parent_node[1]) / (node[0] - parent_node[0])
             dy = math.sqrt(self.offset ** 2 / (slope ** 2 + 1))
             dx = -slope * dy
-
+        #print('오리진:',new_node_center)
         new_node_left = new_node_center + np.array([dx, dy])
         new_node_right = new_node_center - np.array([dx, dy])
         selected_nodes = np.array([new_node_center, new_node_left, new_node_right]).round().astype(int)
@@ -104,12 +124,14 @@ class RrtApf:
         return np.array(path).reshape(-1,2)
 
     def find_path(self):
-        for iteration in range(self.maxIter):
-            random_node = self.get_random_node()
-            nearest_node = self.get_nearest_node(random_node)
+        for iteration in range(self.maxIter):   # 최대 15000번 반복
+            random_node = self.get_random_node()    # 랜덤 노드 [201, 201] 중에서 셀렉
+            nearest_node = self.get_nearest_node(random_node)    # self.nodes list에서 random 노드와 가장 가까운 놈을 셀렉
+            # TODO 여기서 nearest node가 사람이면 distance 길게 페널티
+            # TODO 여기서 nearest node가 invisible area 면 distance 길게 페널티
 
             new_node = self.get_new_node(random_node, nearest_node)
-            if (new_node is None) or np.array_equal(new_node, nearest_node):
+            if (new_node is None) or np.array_equal(new_node, nearest_node):   # apf 통과한 노드 없을 경우: 이번 iter skip (다시 랜덤 셀렉)
                 continue
             
             # when path reaches goal location
@@ -119,9 +141,9 @@ class RrtApf:
                 return self.back_track(new_node), self.nodes
                 
             match_found = np.any(np.all(new_node == self.nodes, axis=1))
-            if not match_found:
+            if not match_found:                                   # 새로운 노드면
                 self.came_from[tuple(new_node)] = nearest_node
-                self.nodes.append(new_node)
+                self.nodes.append(new_node)                       # self.node list에 new node 추가
                 if self.animate:
                     ax.plot(new_node[0], new_node[1], 'b.', markersize=2)
                     plt.pause(0.001)
@@ -228,14 +250,17 @@ def get_obstacle_map(pts, pedsim_agent_list, r_x, r_y):
     
     #print('pedsim_list:',pedsim_agent_list)  # DEBUG
     # 220928 사람 추가
+    '''
     if pedsim_agent_list != None:
         for i, ped in enumerate(pedsim_agent_list):
             x = ped[0] + map_bias
             y = ped[1] + map_bias
             #center, radius = np.array([int(x),int(y)])*RES, 1*RES
-            center, radius = np.array([int(x*RES),int(y*RES)]), 1 # 1*RES
+            human_radius = 1   # 221103
+            center, radius = np.array([int(x*RES),int(y*RES)]), human_radius * RES * 0.35 # 1*RES
             obs2 = np.linalg.norm(pts-center, axis=1) < radius
             obs = np.logical_or(obs, obs2)
+    '''
 
     # create border
     obs2 = np.zeros((height,width), dtype=bool)
@@ -258,16 +283,18 @@ def get_obstacle_map(pts, pedsim_agent_list, r_x, r_y):
     conf = cv2.dilate(conf, robot_shape)
     return conf, obs.reshape(height, width)
 
-def run_application(start, goal):
+def run_application(start, goal, pedsim_list):   # RrtApf 돌린 후 path list return
     # find path
-    planner = RrtApf(start, goal, conf, animate=False)
+    planner = RrtApf(start, goal, conf, animate=False)   # conf: obstacles?
+    planner.pedsim_list = pedsim_list
 
     if PLOT:
         ax.set_title("Searching Path")
-        ticks = np.arange(0, 10*RES+1, RES)
+        #ticks = np.arange(0, 10*RES+1, RES)
+        ticks = np.arange(0, 20*RES+1, RES)
         ax.set_xticks(ticks)
         ax.set_yticks(ticks)
-        plt.pause(0.001)    # Necessary for updating title
+        plt.pause(0.001)    # Necessary for updating title   # 안그려지면 여기 숫자 늘려보기?
     
     start_time = time.perf_counter()
     path, nodes = planner.find_path()
@@ -324,7 +351,7 @@ def main(r_x, r_y, g_x, g_y, pedsim_agents_list):   # [-4.5 ~ 4.5],
     rpm2 = 10
     clearance = 0.1
     
-    PLOT = False    # visualize 할건지
+    PLOT = True    # visualize 할건지
     GOAL_RADIUS = round(0.25 *RES)
     ROBOT_RADIUS = round(0.2 *RES)
     CLEARANCE = round(clearance *RES)
@@ -333,9 +360,9 @@ def main(r_x, r_y, g_x, g_y, pedsim_agents_list):   # [-4.5 ~ 4.5],
     # create exploration space
     #width, height = 10*RES+1, 10*RES+1    # (21, 21)
     width, height = 20*RES+1, 20*RES+1    # (-5.5 ~ 5.5)
-    Y, X = np.mgrid[0:height, 0:width]
+    Y, X = np.mgrid[0:height, 0:width]    # np.mgrid[0:201, 0:201] -> 
     
-    pts = np.array([X.ravel(), Y.ravel()]).T
+    pts = np.array([X.ravel(), Y.ravel()]).T   # ravel: 다차원을 1차원으로 푸는것, reshape(-1) or flatten()
     #print('pts:',pts)
 
     # create obstacle map
@@ -358,8 +385,7 @@ def main(r_x, r_y, g_x, g_y, pedsim_agents_list):   # [-4.5 ~ 4.5],
         ax.scatter(pts[obs.flatten(),0], pts[obs.flatten(),1], s=1, c='#ff7f0e', marker = '*')   # c=색깔, marker=형태   # https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.scatter.html
     #print('스타트:',start, 'goal:',goal)
     
-    #print(run_application(start, goal))
-    return run_application(start, goal)
+    return run_application(start, goal, pedsim_agents_list)
 
 if __name__ == "__main__":
     main(sys.argv)
