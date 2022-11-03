@@ -79,7 +79,7 @@ class RrtApf:
                 least_potential = total_potential
                 new_node = node
             
-            print('node:',node,'p_p:',positive_potential,'n_p:',negative_potential, 'p_p:',density_sum)
+            #print('node:',node,'p_p:',positive_potential,'n_p:',negative_potential, 'p_p:',density_sum)
         #print('new nodes:',new_node)
         return new_node
 
