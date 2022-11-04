@@ -186,7 +186,7 @@ for i_episode in range(9999999):
         ####done_bool = 0 if episode_timesteps + 1 == max_ep else int(done)
         
         
-        done = 1 if episode_steps == max_ep else int(done)
+        done = 1 if episode_steps >= max_ep else int(done)
         
         
         
@@ -233,7 +233,7 @@ for i_episode in range(9999999):
             state = env.reset()
             episode_reward = 0
             done = False
-            print('whileㅈㅓㄴ')
+            print('while 전')
             flag = 0
             while not done:
                 action = agent.select_action(state, evaluate=True)
