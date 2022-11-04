@@ -144,6 +144,8 @@ for i_episode in itertools.count(1):
     episode_steps = 0
     done = False
     state = env.reset()
+    #print('----------------')
+    #print('i_episode:',i_episode, done)
 
     while not done:
         if args.start_steps > total_numsteps:
@@ -170,7 +172,9 @@ for i_episode in itertools.count(1):
         a_in = [(action[0] + 1) / 2, action[1]]  
 
         #next_state, reward, done, _ = env.step(action) # Step
-        next_state, reward, done, _ = env.step(a_in, episode_steps) # 221102
+        #print('ain:',a_in)
+        next_state, reward, done, target = env.step(a_in, episode_steps) # 221102
+        #print('after step:',episode_steps, total_numsteps)
         episode_steps += 1
         total_numsteps += 1
         episode_reward += reward
@@ -199,9 +203,19 @@ for i_episode in itertools.count(1):
 
     if total_numsteps > args.num_steps:
         break
+    
+    # 221104
+    status = 'NA'
+    if done and target:
+        status = 'Success'
+    elif done and episode_steps == max_ep:
+        status = 'Timeout'
+    elif done:
+        status = 'Collision'
+    
 
     writer.add_scalar('reward/train', episode_reward, i_episode)
-    print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
+    print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}, {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2), status))
 
     if i_episode != 0 and i_episode % save_interval == 0 and save_model:
         
@@ -246,3 +260,5 @@ for i_episode in itertools.count(1):
         print("----------------------------------------")
         print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
         print("----------------------------------------")
+
+    #print('end tien done:',done)
