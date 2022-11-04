@@ -150,7 +150,7 @@ class RrtApf:
 
         print("Path not found, replaced by the goal")
         goall = [RES*(goal[0]+10), RES*(goal[1]+10)]
-        goall = np.asarray(goall)
+        #goall = np.asarray(goall)
         return goall
         #sys.exit()
 
