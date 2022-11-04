@@ -550,6 +550,7 @@ class GazeboEnv:
         return state, reward, done, target
 
     def reset(self):
+        
         # Resets the state of the environment and returns an initial observation.
         rospy.wait_for_service("/gazebo/reset_world")
         try:
@@ -667,7 +668,7 @@ class GazeboEnv:
             print('e:',self.pedsim_agents_distance)
             state = np.append(laser_state, robot_state)  # 20 + 4 + 12
             state = np.append(state, self.pedsim_agents_distance)  # 20 + 4 + 12
-            
+        
         #220928 최초 initial path 생성
         try:
             if PLANNER_WAREHOUSE:

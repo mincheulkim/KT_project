@@ -149,9 +149,8 @@ class RrtApf:
                     plt.pause(0.001)
 
         print("Path not found, replaced by the goal")
-        goall = [RES*(goal[0]+10), RES*(goal[1]+10)]
-        #goall = np.asarray(goall)
-        return goall
+        ###goall = [RES*(goal[0]+10), RES*(goal[1]+10)]
+        ###return goall
         #sys.exit()
 
 # =============================================================================
@@ -300,7 +299,9 @@ def run_application(start, goal, pedsim_list):   # RrtApf 돌린 후 path list r
         plt.pause(0.001)    # Necessary for updating title   # 안그려지면 여기 숫자 늘려보기?
     
     start_time = time.perf_counter()
+    print('find path start')
     path, nodes = planner.find_path(goal)
+    print('find path end')
     exec_time = time.perf_counter() - start_time
     
     if PLOT:
@@ -310,7 +311,7 @@ def run_application(start, goal, pedsim_list):   # RrtApf 돌린 후 path list r
         ax.plot(np.array(nodes)[:, 0], np.array(nodes)[:, 1], 'b.', markersize=2)
         print("Press 'q' to start following path")
         plt.show()
-
+    print('return path:',path)
     return path / RES # rescale it to original resolution
 
 def parse_args(argv):
