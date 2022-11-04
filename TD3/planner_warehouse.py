@@ -123,8 +123,8 @@ class RrtApf:
         path.reverse()
         return np.array(path).reshape(-1,2)
 
-    def find_path(self, goal):
-        for iteration in range(self.maxIter):   # 최대 15000번 반복
+    def find_path(self, goal):   # 여기가 문제임
+        for iteration in range(self.maxIter):   # 최대 20000번 반복
             random_node = self.get_random_node()    # 랜덤 노드 [201, 201] 중에서 셀렉
             nearest_node = self.get_nearest_node(random_node)    # self.nodes list에서 random 노드와 가장 가까운 놈을 셀렉
             # TODO 여기서 nearest node가 사람이면 distance 길게 페널티
