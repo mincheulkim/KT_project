@@ -139,13 +139,12 @@ if load_model:
 total_numsteps = 0
 updates = 0
 
-for i_episode in itertools.count(1):
+#for i_episode in itertools.count(1):
+for i_episode in range(9999999):
     episode_reward = 0
     episode_steps = 0
     done = False
     state = env.reset()
-    #print('----------------')
-    #print('i_episode:',i_episode, done)
 
     while not done:
         if args.start_steps > total_numsteps:
@@ -174,7 +173,7 @@ for i_episode in itertools.count(1):
         #next_state, reward, done, _ = env.step(action) # Step
         #print('ain:',a_in)
         next_state, reward, done, target = env.step(a_in, episode_steps) # 221102
-        print('after step:',episode_steps, total_numsteps)
+        #print('after step:',episode_steps, total_numsteps)
         episode_steps += 1
         total_numsteps += 1
         episode_reward += reward
@@ -260,5 +259,3 @@ for i_episode in itertools.count(1):
         print("----------------------------------------")
         print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
         print("----------------------------------------")
-
-    #print('end tien done:',done)

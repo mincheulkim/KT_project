@@ -452,12 +452,6 @@ class GazeboEnv:
         # try, excep: https://dojang.io/mod/page/view.php?id=2398
         #if DYNAMIC_GLOBAL:
         if DYNAMIC_GLOBAL and episode_steps%20 ==0:
-            if PLANNER_WAREHOUSE:
-                path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
-            else:
-                path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
-            self.path_i_rviz = path
-            '''
             while True:
                 try:
                     if PLANNER_WAREHOUSE:
@@ -472,7 +466,7 @@ class GazeboEnv:
                     path = np.asarray(path)   # 221103
                     self.path_i_rviz = path
                     break
-            '''
+                
             # TODO sampling 방법에 대해 고려
             #############################    
             ############# 221010 고정된 5 사이즈의 path output    self.path_as_input
@@ -675,11 +669,6 @@ class GazeboEnv:
             state = np.append(state, self.pedsim_agents_distance)  # 20 + 4 + 12
             
         #220928 최초 initial path 생성
-        if PLANNER_WAREHOUSE:
-            path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
-        else:
-            path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
-        '''
         try:
             if PLANNER_WAREHOUSE:
                 path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
@@ -689,7 +678,6 @@ class GazeboEnv:
             print('예외발생. path를 global_goal로 지정')
             path = [[self.goal_x, self.goal_y]]
             path = np.asarray(path)   # 221103
-        '''
         
         self.path_i_prev = path
         self.path_i_rviz = path
