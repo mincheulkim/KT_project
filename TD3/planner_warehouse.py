@@ -26,7 +26,7 @@ import sys
 class RrtApf:
     #def __init__(self, start, goal, obs_map, offset=3, maxIter=5000, goal_radius=15, animate=False):
     #def __init__(self, start, goal, obs_map, offset=6, maxIter=5000, goal_radius=15, animate=False):   # obs_map = conf
-    def __init__(self, start, goal, obs_map, offset=6, maxIter=15000, goal_radius=15, animate=False):   # 221103
+    def __init__(self, start, goal, obs_map, offset=6, maxIter=200000, goal_radius=15, animate=False):   # 221103
         self.start = start
         self.goal = goal
         self.animate = animate                      # boolean variable to show expanding rrt search tree
@@ -123,7 +123,7 @@ class RrtApf:
         path.reverse()
         return np.array(path).reshape(-1,2)
 
-    def find_path(self):
+    def find_path(self, goal):
         for iteration in range(self.maxIter):   # 최대 15000번 반복
             random_node = self.get_random_node()    # 랜덤 노드 [201, 201] 중에서 셀렉
             nearest_node = self.get_nearest_node(random_node)    # self.nodes list에서 random 노드와 가장 가까운 놈을 셀렉
@@ -148,7 +148,10 @@ class RrtApf:
                     ax.plot(new_node[0], new_node[1], 'b.', markersize=2)
                     plt.pause(0.001)
 
-        print("Path not found")
+        print("Path not found, replaced by the goal")
+        goall = [RES*(goal[0]+10), RES*(goal[1]+10)]
+        goall = np.asarray(goall)
+        return goall
         #sys.exit()
 
 # =============================================================================
@@ -297,7 +300,7 @@ def run_application(start, goal, pedsim_list):   # RrtApf 돌린 후 path list r
         plt.pause(0.001)    # Necessary for updating title   # 안그려지면 여기 숫자 늘려보기?
     
     start_time = time.perf_counter()
-    path, nodes = planner.find_path()
+    path, nodes = planner.find_path(goal)
     exec_time = time.perf_counter() - start_time
     
     if PLOT:
