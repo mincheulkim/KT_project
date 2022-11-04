@@ -174,7 +174,7 @@ for i_episode in itertools.count(1):
         #next_state, reward, done, _ = env.step(action) # Step
         #print('ain:',a_in)
         next_state, reward, done, target = env.step(a_in, episode_steps) # 221102
-        #print('after step:',episode_steps, total_numsteps)
+        print('after step:',episode_steps, total_numsteps)
         episode_steps += 1
         total_numsteps += 1
         episode_reward += reward
