@@ -681,6 +681,7 @@ class GazeboEnv:
                 print('[reset]예외발생. path를 global_goal로 지정')
                 path = [[self.goal_x, self.goal_y]]
                 path = np.asarray(path)   # 221103
+                print('바꾼후 패스:',path)
                 break
         
         self.path_i_prev = path
@@ -883,52 +884,52 @@ class GazeboEnv:
         #print('self.pre_i:',self.path_i_prev)
         for i, pose in enumerate(self.path_i_rviz):
     
-            marker = Marker()
-            marker.id = i
-            marker.header.frame_id = "odom"
-            marker.type = marker.CYLINDER
-            marker.action = marker.ADD
-            marker.scale.x = 0.1
-            marker.scale.y = 0.1
-            marker.scale.z = 0.01
-            marker.color.a = 0.5
-            marker.color.r = 0.5
-            marker.color.g = 1.0
-            marker.color.b = 0.0
-            marker.pose.orientation.w = 1.0
+            marker4 = Marker()
+            marker4.id = i
+            marker4.header.frame_id = "odom"
+            marker4.type = marker4.CYLINDER
+            marker4.action = marker4.ADD
+            marker4.scale.x = 0.1
+            marker4.scale.y = 0.1
+            marker4.scale.z = 0.01
+            marker4.color.a = 0.5
+            marker4.color.r = 0.5
+            marker4.color.g = 1.0
+            marker4.color.b = 0.0
+            marker4.pose.orientation.w = 1.0
             if PLANNER_WAREHOUSE:
-                marker.pose.position.x = pose[0] - 10
-                marker.pose.position.y = pose[1] - 10 
+                marker4.pose.position.x = pose[0] - 10
+                marker4.pose.position.y = pose[1] - 10 
             else:
-                marker.pose.position.x = pose[0] - 4.5
-                marker.pose.position.y = pose[1] - 4.5
-            marker.pose.position.z = 0
+                marker4.pose.position.x = pose[0] - 4.5
+                marker4.pose.position.y = pose[1] - 4.5
+            marker4.pose.position.z = 0
 
-            markerArray4.markers.append(marker)
+            markerArray4.markers.append(marker4)
 
         self.publisher4.publish(markerArray4)
         
         
         # optimal goal
         markerArray5 = MarkerArray()
-        marker = Marker()
-        marker.header.frame_id = "odom"
-        marker.type = marker.CYLINDER
-        marker.action = marker.ADD
-        marker.scale.x = 0.15
-        marker.scale.y = 0.15
-        marker.scale.z = 0.01
-        marker.color.a = 1.0
-        marker.color.r = 0.1
-        marker.color.g = 0.1
-        marker.color.b = 1.0
-        marker.pose.orientation.w = 1.0
-        marker.pose.position.x = self.optimal_gx
-        marker.pose.position.y = self.optimal_gy
-        marker.pose.position.z = 0
+        marker5 = Marker()
+        marker5.header.frame_id = "odom"
+        marker5.type = marker.CYLINDER
+        marker5.action = marker.ADD
+        marker5.scale.x = 0.15
+        marker5.scale.y = 0.15
+        marker5.scale.z = 0.01
+        marker5.color.a = 1.0
+        marker5.color.r = 0.1
+        marker5.color.g = 0.1
+        marker5.color.b = 1.0
+        marker5.pose.orientation.w = 1.0
+        marker5.pose.position.x = self.optimal_gx
+        marker5.pose.position.y = self.optimal_gy
+        marker5.pose.position.z = 0
         #print(self.optimal_gx, self.optimal_gy)   # DEBUG
 
-        markerArray5.markers.append(marker)
+        markerArray5.markers.append(marker5)
 
         self.publisher5.publish(markerArray5)
         
@@ -938,24 +939,24 @@ class GazeboEnv:
         #print('self.path_as_input:',self.path_as_init)
         for i, pose in enumerate(self.path_as_init):
     
-            marker = Marker()
-            marker.id = i
-            marker.header.frame_id = "odom"
-            marker.type = marker.CYLINDER
-            marker.action = marker.ADD
-            marker.scale.x = 0.1
-            marker.scale.y = 0.1
-            marker.scale.z = 0.03
-            marker.color.a = 1.0
-            marker.color.r = 1.0
-            marker.color.g = 0.1
-            marker.color.b = 0.1
-            marker.pose.orientation.w = 1.0
-            marker.pose.position.x = pose[0]
-            marker.pose.position.y = pose[1]
-            marker.pose.position.z = 0
+            marker6 = Marker()
+            marker6.id = i
+            marker6.header.frame_id = "odom"
+            marker6.type = marker.CYLINDER
+            marker6.action = marker.ADD
+            marker6.scale.x = 0.1
+            marker6.scale.y = 0.1
+            marker6.scale.z = 0.03
+            marker6.color.a = 1.0
+            marker6.color.r = 1.0
+            marker6.color.g = 0.1
+            marker6.color.b = 0.1
+            marker6.pose.orientation.w = 1.0
+            marker6.pose.position.x = pose[0]
+            marker6.pose.position.y = pose[1]
+            marker6.pose.position.z = 0
 
-            markerArray6.markers.append(marker)
+            markerArray6.markers.append(marker6)
 
         self.publisher6.publish(markerArray6)
     

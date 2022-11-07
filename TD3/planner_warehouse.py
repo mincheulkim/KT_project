@@ -26,7 +26,8 @@ import sys
 class RrtApf:
     #def __init__(self, start, goal, obs_map, offset=3, maxIter=5000, goal_radius=15, animate=False):
     #def __init__(self, start, goal, obs_map, offset=6, maxIter=5000, goal_radius=15, animate=False):   # obs_map = conf
-    def __init__(self, start, goal, obs_map, offset=6, maxIter=20000, goal_radius=15, animate=False):   # 221103
+    #def __init__(self, start, goal, obs_map, offset=6, maxIter=20000, goal_radius=15, animate=False):   # 221103
+    def __init__(self, start, goal, obs_map, offset=6, maxIter=1000, goal_radius=15, animate=False):   # 221107 숙자가 더 작을수록 for 무한루프 적은것을 확인
         self.start = start
         self.goal = goal
         self.animate = animate                      # boolean variable to show expanding rrt search tree
