@@ -149,10 +149,10 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
-        if args.start_steps > total_numsteps:
-            #action = env.action_space.sample()  # Sample random action   # TODO 이부분을 완전 랜덤하게 해야 한다
-            action = agent.select_action(state)
-            action = (action + np.random.normal(0, 0.2, size=action_dim)).clip(-max_action, max_action)   
+        if args.start_steps > total_numsteps:    # start_steps = 10000
+            #action = agent.select_action(state)    # before 221110 이거는 검증해봐야 하는 부분
+            #action = (action + np.random.normal(0, 0.2, size=action_dim)).clip(-max_action, max_action)   
+            action = np.random.normal(0, 1.0, size=action_dim).clip(-max_action, max_action)   # 221110 위에 줄을 이걸로 대치해도 됨 [-1~1, -1~1]
         else:   # 여기 실제로 되는지
             action = agent.select_action(state)  # Sample action from policy
 
