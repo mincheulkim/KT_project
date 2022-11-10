@@ -34,12 +34,12 @@ GOAL_REACHED_DIST = 0.3
 COLLISION_DIST = 0.35
 TIME_DELTA = 0.1
 
-DYNAMIC_GLOBAL = True  # 221003
+DYNAMIC_GLOBAL = True  # 221003    # global path replanning과 관련
 
 #PATH_AS_INPUT = False # 221014
-PATH_AS_INPUT = True # 221019
+PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
 
-PLANNER_WAREHOUSE = True # 221102
+PLANNER_WAREHOUSE = True # 221102  # warehouse 환경일 때
 
 consider_ped = False
 
@@ -316,14 +316,14 @@ class GazeboEnv:
 
 
     # Perform an action and read a new state
-    def step(self, action, episode_steps):
+    def step(self, action, episode_steps):        
         target = False
         # 221005 이동하기 전 거리
         distance = np.linalg.norm([self.odom_x - self.goal_x, self.odom_y - self.goal_y])
         self.pre_distance = copy.deepcopy(distance)
         self.pre_odom_x = copy.deepcopy(self.odom_x)   # 221101
         self.pre_odom_y = copy.deepcopy(self.odom_y)   # 221101
-
+        
         # Publish the robot action
         vel_cmd = Twist()
         vel_cmd.linear.x = action[0]
@@ -549,7 +549,14 @@ class GazeboEnv:
         if PATH_AS_INPUT:
             state = np.append(state, self.temp_path_as_input)
             #print('[step]self.temp_path_as_input:',self.temp_path_as_input)
-        
+            
+            
+        # 221110 integrity checker
+        ## 잘못된 locomotion으로 robot이 하늘 위를 날아다니는 거를 체크해서 
+        if self.last_odom.pose.pose.position.z > 0.05:   # 에러날 대 보면 0.12, 0.22, .24 막 이럼
+            print('Error: Locomotion fail. 강제로 done = True')
+            done = True
+
         return state, reward, done, target
 
     def reset(self):
@@ -582,6 +589,7 @@ class GazeboEnv:
         object_state.pose.position.y = y
         #object_state.pose.position.z = 0.
         #object_state.pose.position.z = 0.2   ### 220923 cafe.world일때
+        
         object_state.pose.orientation.x = quaternion.x
         object_state.pose.orientation.y = quaternion.y
         object_state.pose.orientation.z = quaternion.z
@@ -931,7 +939,6 @@ class GazeboEnv:
         marker5.pose.position.x = self.optimal_gx
         marker5.pose.position.y = self.optimal_gy
         marker5.pose.position.z = 0
-        #print(self.optimal_gx, self.optimal_gy)   # DEBUG
 
         markerArray5.markers.append(marker5)
 
@@ -940,7 +947,6 @@ class GazeboEnv:
         # 221020
         # 5 optimal path
         markerArray6 = MarkerArray()
-        #print('self.path_as_input:',self.path_as_init)
         for i, pose in enumerate(self.path_as_init):
     
             marker6 = Marker()
@@ -1078,20 +1084,14 @@ class GazeboEnv:
     @staticmethod     # 221014  waypoint에 가까워 지면 sparse reward
     def get_reward_path(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y):
         reward_w_sum = 0.0    # 각 웨이포인트별 먼 거리 penalty
-        reward_w = 0.0
         realibility = 1.0
-        #path_as_input = path_as_input.reshape(-1,2)
-        #print(path_as_input)
-        #print('로봇 오돔:',odom_x, odom_y)
-        #print('goal:',goal_x, goal_y)
+
         for i, path in enumerate(path_as_input):
             #print(i, path)
             dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
             dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
             dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
             if (dist_robot_goal > dist_waypoint_goal or dist_waypoint_goal < 0.11) and dist_waypoint_robot < 0.35:   # 로봇보다 골에 가까운 웨이포인트가 남아있을 경우
-                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
                 reward_w_sum += 0.5 *realibility               # 완화값 * 신뢰도 * 로봇-웨이포인트 거리(로봇이 웨이포인트와 멀리 있음 페널티)
         if target:
             return 100.0
@@ -1099,9 +1099,6 @@ class GazeboEnv:
             return -100.0
         else:
             r3 = lambda x: 1 - x if x < 1 else 0.0
-            #print('리워드:',action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2)
-            #return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
-            #print(action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2, penalty_w_sum)
             return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 - reward_w_sum
         
     @staticmethod     
@@ -1156,8 +1153,6 @@ class GazeboEnv:
                 pre_dist_wpt = np.sqrt((path[0] - pre_odom_x)**2 + (path[1] - pre_odom_y)**2)
                 cur_dist_wpt = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
                 diff_dist_wpt = pre_dist_wpt - cur_dist_wpt
-                #print(i, diff_dist_wpt)
-                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
                 if diff_dist_wpt >= 0:
                     reward = 2 * diff_dist_wpt
                 else:
