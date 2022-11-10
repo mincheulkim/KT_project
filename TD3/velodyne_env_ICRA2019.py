@@ -1007,11 +1007,11 @@ class GazeboEnv:
         
         # 1. Success
         if target:
-            R_goal = 1 # sparse award
+            R_goal = 50 # sparse award   # original 1
             
         # 2. Collision
         if collision:
-            R_collision = -1
+            R_collision = -50            # original -1
             
         
         # 4. Waypoint
