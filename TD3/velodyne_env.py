@@ -125,6 +125,9 @@ def check_pos_warehouse(x, y):   # 221102
     # pole3
     if -3.93786+0.245805 > x > -3.93786-0.245805 and -2.39478+0.245805 > y > -2.39478-0.245805:
         goal_ok = False
+    # 전체 지도 [-10, 10] 넘어가는 경우    # 221108
+    if x < -10 or x > 10 or y < -10 or y > 10:
+        goal_ok = False
         
     return goal_ok
 
@@ -461,10 +464,10 @@ class GazeboEnv:
                     self.path_i_rviz = path
                     break
                 except:
-                    print('예외발생[step]. path를 global goal로 지정')
                     path = [[self.goal_x, self.goal_y]]
                     path = np.asarray(path)   # 221103
                     self.path_i_rviz = path
+                    print('예외발생[step]. path를 global goal로 지정: ', path)
                     break
                 
             # TODO sampling 방법에 대해 고려
@@ -678,10 +681,9 @@ class GazeboEnv:
                     path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
                 break
             except:
-                print('[reset]예외발생. path를 global_goal로 지정')
                 path = [[self.goal_x, self.goal_y]]
                 path = np.asarray(path)   # 221103
-                print('바꾼후 패스:',path)
+                print('[reset]예외발생. path를 global_goal로 지정', path)
                 break
         
         self.path_i_prev = path
@@ -773,9 +775,11 @@ class GazeboEnv:
 
     def change_goal(self):   # adaptive goal positioning
         # Place a new goal and check if its location is not on one of the obstacles
-        if self.upper < 10:    # 5
+        #if self.upper < 10:    # 5
+        if self.upper < 5:  # 221108
             self.upper += 0.004
-        if self.lower > -10:   # -5
+        #if self.lower > -10:   # -5
+        if self.lower > -5: # 221108
             self.lower -= 0.004
 
         goal_ok = False

@@ -44,8 +44,8 @@ noise_clip = 0.5  # Maximum clamping values of the noise
 policy_freq = 2  # Frequency of Actor network updates (delayed policy updates cycle)
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "TD3_velodyne"  # name of the file to store the policy
-save_model = True  # Weather to save the model or not
-load_model = False  # Weather to load a stored model   
+save_model = False  # Weather to save the model or not
+load_model = True  # Weather to load a stored model   
 random_near_obstacle = False  # To take random actions near obstacles or not
 start_timesteps = 2e3 # 221006   # https://github.com/sfujim/TD3/blob/master/main.py 
 save_interval = 200
@@ -128,19 +128,21 @@ else:
 # Create a replay buffer
 memory = ReplayMemory(args.replay_size, args.seed)
 
-ckpt_path = "checkpoints/sac_checkpoint_TD3_velodyne_200"
+ckpt_path = "checkpoints/sac_checkpoint_TD3_velodyne_7000"
 evaluate = False
 if load_model:
         agent.load_checkpoint(ckpt_path, evaluate)
         print('잘 불러왔다.')
 
 # Begin the training loop
+count_rand_actions = 0
+random_action = []
 
 total_numsteps = 0
 updates = 0
 
-#for i_episode in itertools.count(1):
-for i_episode in range(9999999):
+for i_episode in itertools.count(1):
+#for i_episode in range(9999999):   # 221108
     episode_reward = 0
     episode_steps = 0
     done = False
@@ -168,12 +170,26 @@ for i_episode in range(9999999):
                 updates += 1
         
         
-        a_in = [(action[0] + 1) / 2, action[1]]  
+        
+        ## 221108 restore random near obstacle action
+        if random_near_obstacle:
+            if (
+                np.random.uniform(0, 1) > 0.85
+                #and min(state[4:-8]) < 0.6
+                and min(state[4:16]) < 0.6   # 라이다 좌중~우중 거리가 짧으면
+                and count_rand_actions < 1
+            ):
+                count_rand_actions = np.random.randint(8, 15)
+                random_action = np.random.uniform(-1, 1, 2)
 
-        #next_state, reward, done, _ = env.step(action) # Step
-        #print('ain:',a_in)
+            if count_rand_actions > 0:
+                count_rand_actions -= 1
+                action = random_action
+                action[0] = -1
+        
+        
+        a_in = [(action[0] + 1) / 2, action[1]]  
         next_state, reward, done, target = env.step(a_in, episode_steps) # 221102
-        #print('after step:',episode_steps, total_numsteps)
         episode_steps += 1
         total_numsteps += 1
         episode_reward += reward
@@ -223,25 +239,28 @@ for i_episode in range(9999999):
 
     evaluation_step = 100
     #if i_episode % 10 == 0 and args.eval is True:
-    if i_episode % evaluation_step == 0 and i_episode != 0 and args.eval is True:
-    #if i_episode % 10 == 0 and i_episode != 0 and args.eval is True:
+    #if i_episode % evaluation_step == 0 and i_episode != 0 and args.eval is True:
+    if i_episode % evaluation_step == 0 and args.eval is True:   # for evaluate
         #print('i_episode:',i_episode)
         print('Validating...')
         avg_reward = 0.
-        episodes = 10
-        for _  in range(episodes):
+        avg_episode_length = 0.  # 221109
+        #episodes = 10
+        episodes = 100  # for evaluate
+        for i in range(episodes):
             state = env.reset()
             episode_reward = 0
+            episode_length = 0    # 221109
             done = False
-            print('while 전')
             flag = 0
             while not done:
                 action = agent.select_action(state, evaluate=True)
                 a_in = [(action[0] + 1) / 2, action[1]]  
                 #next_state, reward, done, _ = env.step(action)
                 #next_state, reward, done, _ = env.step(a_in)
-                next_state, reward, done, _ = env.step(a_in, flag)
+                next_state, reward, done, target = env.step(a_in, flag)
                 episode_reward += reward
+                episode_length += 1
 
 
                 state = next_state
@@ -250,12 +269,22 @@ for i_episode in range(9999999):
                 if flag > 501:
                     break
             avg_reward += episode_reward
-            print('while끝')
+            avg_episode_length += episode_length  # 221109
+            status = 'None'
+            if flag > 501:
+                status = 'Timeout'
+            elif done and target:
+                status = 'Success'
+            elif done:
+                status = 'Collision'
+            print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps length:', episode_length)
         avg_reward /= episodes
+        avg_episode_length /= episodes  # 221109
 
 
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)
 
         print("----------------------------------------")
-        print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
+        #print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
+        print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_length, 2)))  # 221109
         print("----------------------------------------")
