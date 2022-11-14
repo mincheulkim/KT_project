@@ -41,6 +41,8 @@ PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 
 
 PLANNER_WAREHOUSE = False # 221102  # warehouse 환경일 때
 
+PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
+
 consider_ped = False
 
 
@@ -288,8 +290,20 @@ class GazeboEnv:
             #print("Spawning model: actor_id = %s", actor_id)
             x= actor_pose.position.x
             y= actor_pose.position.y
-            self.pedsim_agents_list.append([x,y])
-            #print('액터:',actor_id,'model_pose:',x, y)
+            # 221114 partial view 상황 가정
+            if PARTIAL_VIEW != True:   # fully observable일때
+                self.pedsim_agents_list.append([x,y])
+                #print('액터:',actor_id,'model_pose:',x, y)
+                
+            if PARTIAL_VIEW and PLANNER_WAREHOUSE != True:   # partial view이고 TD3 환경일때
+                if -5 < y < 0:    # 아래쪽 다 보이는 경우
+                    self.pedsim_agents_list.append([x,y])
+                
+            if PARTIAL_VIEW and PLANNER_WAREHOUSE == True:  # partial view이고 warehouse 환경일때
+                if -10 < y < 10:   # 아래쪽 다 보이는 경우
+                    self.pedsim_agents_list.append([x,y])
+
+        #print('페드심 리스트: ', self.pedsim_agents_list)
             
     def GetRGBImageObservation(self):
         try:
@@ -434,11 +448,19 @@ class GazeboEnv:
         '''
         self.path_as_input = copy.deepcopy(self.path_as_init)
         #print('[step]self.path_as_init;',self.path_as_init)   # global paoint에서 path as init 보여줌
+        
+        
+        # 221114 Reliability checker   TODO
+        # input: path_as_input
+        # method: partial observation area에 또는 robot visible area에 위치하면 reliability = 1.0, 아니면 0.2
+        # output: realibility
+        reliability_score = self.get_reliablity(self.path_as_input, PARTIAL_VIEW)
 
         
         if PATH_AS_INPUT:
             #reward = self.get_reward_path(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y)
-            reward = self.get_reward_path_221101(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
+            #reward = self.get_reward_path_221101(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
+            reward = self.get_reward_path_221114(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y, reliability_score)
         else:
             reward = self.get_reward(target, collision, action, min_laser)
         
@@ -1188,3 +1210,106 @@ class GazeboEnv:
         
 
         return R_t
+    
+    
+    @staticmethod     
+    def get_reward_path_221114(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y, relliability_score):
+        ## 221101 reward design main idea: R_guldering 참조
+        # R = R_g + R_wpt + R_o + R_v
+        R_g = 0.0
+        R_c = 0.0
+        R_p = 0.0
+        R_w = 0.0
+        R_laser = 0.0
+        R_t = 0.0  # total
+        num_valid_wpt = 0
+        # 1. Success
+        if target:
+            R_g = 100.0
+            
+        # 2. Collision
+        if collision:
+            R_c = -100
+            
+        # 3. Progress
+        R_p = pre_dist - dist
+        
+        # 4. Waypoint
+        realibility = 1.0   # 보이면 1.0, 안보이면 0.2
+        '''
+        ##### sparse waypoint reward ######
+        ##### waypoint에 0.35 영역 내부에 있으면(존재하는 중이면) reward
+        for i, path in enumerate(path_as_input):
+            #print(i, path)
+            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
+            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
+            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
+            if (dist_robot_goal > dist_waypoint_goal or i==4) and dist_waypoint_robot < 0.35:   # 로봇보다 골에 가까운 웨이포인트가 남아있을 경우
+                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
+                #reward_w_sum += 0.5 *realibility               # 완화값 * 신뢰도 * 로봇-웨이포인트 거리(로봇이 웨이포인트와 멀리 있음 페널티)
+                reward = 0.35 - dist_waypoint_robot   # 221101
+                R_w += reward * realibility
+        '''
+                
+        ##### 221114 dense waypoint reward with reliability #####
+        for i, path in enumerate(path_as_input):
+            #print(i, path)
+            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
+            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
+            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
+            if (dist_robot_goal > dist_waypoint_goal or i==4):   # candidate waypoint 선정
+                num_valid_wpt += 1
+                pre_dist_wpt = np.sqrt((path[0] - pre_odom_x)**2 + (path[1] - pre_odom_y)**2)
+                cur_dist_wpt = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+                diff_dist_wpt = pre_dist_wpt - cur_dist_wpt
+                if diff_dist_wpt >= 0:
+                    reward = 2 * diff_dist_wpt
+                else:
+                    reward = diff_dist_wpt
+                
+                reward = reward * relliability_score[i][0]   # 221101
+                
+                R_w += reward * relliability_score[i][0]
+        R_w = R_w / num_valid_wpt
+        
+        # 5. Laser distance
+        if min_laser < 0.5:
+            R_laser = min_laser - 0.5
+        
+        # total
+        R_t = R_g + R_c + R_p + R_p + R_w + R_laser
+        #print('tot:',R_t, '골:',R_g, '충돌:',R_c, '전진:',R_p, '웨이포인트:',R_w,'(',num_valid_wpt,')', '레이저:',R_laser)
+        dx = odom_x - pre_odom_x
+        dy = odom_y - pre_odom_y
+        
+
+        return R_t
+
+
+    @staticmethod     
+    def get_reliablity(path_as_input, PARTIAL_VIEW):
+        reliablity_scores = []
+        reliability_score = 0.0
+        
+        for i, path in enumerate(path_as_input):
+            #print(i, path)
+            if PARTIAL_VIEW != True:    # GT
+                reliability_score = 1.0
+            else:                       # Partial view일경우 default로 invisible로 세팅
+                reliability_score = 0.2
+
+            #1. CCTV 영역에 노드가 위치할 경우 (Partial observation)
+            if PARTIAL_VIEW and PLANNER_WAREHOUSE != True:  # TD3 환경일 경우
+                if -5< path[1] <0:
+                    reliability_score = 1.0
+                    
+            if PARTIAL_VIEW and PLANNER_WAREHOUSE:  # warehouse 환경일 경우
+                if -10 < path[1] < 0:
+                    reliability_score = 1.0
+            #2. 로봇 영역에 노드가 위치할 경우 (TODO)
+            
+            reliablity_scores.append([reliability_score])
+
+        return reliablity_scores
