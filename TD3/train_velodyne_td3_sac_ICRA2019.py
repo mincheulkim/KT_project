@@ -45,7 +45,7 @@ policy_freq = 2  # Frequency of Actor network updates (delayed policy updates cy
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "TD3_velodyne_ICRA2019"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
-load_model = False  # Weather to load a stored model   
+load_model = True  # Weather to load a stored model   
 random_near_obstacle = False  # To take random actions near obstacles or not
 start_timesteps = 2e3 # 221006   # https://github.com/sfujim/TD3/blob/master/main.py 
 save_interval = 200
@@ -125,7 +125,7 @@ agent = SAC_PATH_ICRA2019(state_dim, action_bound, args)
 # Create a replay buffer
 memory = ReplayMemory(args.replay_size, args.seed)
 
-ckpt_path = "checkpoints/sac_checkpoint_TD3_velodyne_7000"
+ckpt_path = "checkpoints/sac_checkpoint_TD3_velodyne_ICRA2019_9800"
 evaluate = False
 if load_model:
         agent.load_checkpoint(ckpt_path, evaluate)

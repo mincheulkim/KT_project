@@ -38,7 +38,7 @@ DYNAMIC_GLOBAL = False  # global path replanning과 관련. ICRA2019 는 한번�
 
 PATH_AS_INPUT = True # 221019      # waypoint(6개)를 input으로 쓸것인지 결정
 
-PLANNER_WAREHOUSE = True # 221102  # warehouse 환경일 때
+PLANNER_WAREHOUSE = False # 221102  # warehouse 환경일 때
 
 consider_ped = False
 
