@@ -484,10 +484,12 @@ class GazeboEnv:
                     #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
                     self.path_as_input[:len(path), :] = path-10.0
                 
-                # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+                # 221114
+                # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
                 elif len(path) > self.path_as_input_no:   # 8>5
-                    self.path_as_input = path[-5:, :]-10.0
-                    
+                    numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                    for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                        self.path_as_input[i, :] = path[number, :] - 10.0
                 
                 # 만약 크기 같다면: 
                 elif len(path) == self.path_as_input_no:
@@ -498,10 +500,12 @@ class GazeboEnv:
                     #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
                     self.path_as_input[:len(path), :] = path-4.5
                 
-                # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+                # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
                 elif len(path) > self.path_as_input_no:   # 8>5
-                    self.path_as_input = path[-5:, :]-4.5
-                
+                    numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                    for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                        self.path_as_input[i, :] = path[number, :] - 4.5
+                                    
                 # 만약 크기 같다면: 
                 elif len(path) == self.path_as_input_no:
                     self.path_as_input = path - 4.5
@@ -711,9 +715,16 @@ class GazeboEnv:
                 #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
                 self.path_as_input[:len(path), :] = path-10.0
             
-            # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+            #### 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+            ###elif len(path) > self.path_as_input_no:   # 8>5
+            ###    self.path_as_input = path[-5:, :]-10.0
+                
+            # 221114
+            # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
             elif len(path) > self.path_as_input_no:   # 8>5
-                self.path_as_input = path[-5:, :]-10.0
+                numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                    self.path_as_input[i, :] = path[number, :] - 10.0
             
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
@@ -725,9 +736,12 @@ class GazeboEnv:
                 #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
                 self.path_as_input[:len(path), :] = path-4.5
             
-            # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+            # 221114
+            # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
             elif len(path) > self.path_as_input_no:   # 8>5
-                self.path_as_input = path[-5:, :]-4.5
+                numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                    self.path_as_input[i, :] = path[number, :] - 4.5                
             
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
