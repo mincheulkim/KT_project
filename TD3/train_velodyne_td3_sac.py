@@ -20,34 +20,22 @@ from gym import spaces
 
 
 
-# Set the parameters for the implementation
+# Set the parameters for the SAC
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # cuda or cpu
 seed = 0  # Random seed number    
 #seed = 4  # Random seed number    # 221007
-eval_freq = 5e3  # After how many steps to perform the evaluation
 max_ep = 500  # maximum number of steps per episode
-eval_ep = 10  # number of episodes for evaluation
-max_timesteps = 5e7  # Maximum number of steps to perform   # 5e6
-expl_noise = 1  # Initial exploration noise starting value in range [expl_min ... 1]
-expl_decay_steps = (
-    500000  # Number of steps over which the initial exploration noise will decay over
-)
-expl_min = 0.1  # Exploration noise after the decay in range [0...expl_noise]
 #batch_size = 40  # Size of the mini-batch
 batch_size = 256  # 221007
 #batch_size = 200  # 221007
-#discount = 0.99999  # Discount factor to calculate the discounted future reward (should be close to 1)   # TODO 0.99로 바꿔보기
-discount = 0.99   # 221007
-tau = 0.005  # Soft target update variable (should be close to 0) 
-policy_noise = 0.2  # Added noise for exploration
-noise_clip = 0.5  # Maximum clamping values of the noise 
-policy_freq = 2  # Frequency of Actor network updates (delayed policy updates cycle)
+#discount = 0.99999  # Discount factor to calculate the discounted future reward (should be close to 1)  
+discount = 0.99   # 221007    # discount factor for reward (default: 0.99)
+tau = 0.005  # Soft target update variable (should be close to 0)    # target smoothing coefficient(τ) (default: 0.005)
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "TD3_velodyne"  # name of the file to store the policy
-save_model = False  # Weather to save the model or not
-load_model = False  # Weather to load a stored model   
-random_near_obstacle = False  # To take random actions near obstacles or not
-start_timesteps = 2e3 # 221006   # https://github.com/sfujim/TD3/blob/master/main.py 
+save_model = True  # Weather to save the model or not
+load_model = True  # Weather to load a stored model   
+random_near_obstacle = True  # To take random actions near obstacles or not
 save_interval = 200
 
 parser = argparse.ArgumentParser(description='PyTorch Soft Actor-Critic Args')
@@ -242,11 +230,14 @@ for i_episode in itertools.count(1):
     #if i_episode % evaluation_step == 0 and i_episode != 0 and args.eval is True:
     if i_episode % evaluation_step == 0 and args.eval is True:   # for evaluate
         #print('i_episode:',i_episode)
-        print('Validating...')
         avg_reward = 0.
         avg_episode_length = 0.  # 221109
         #episodes = 10
-        episodes = 100  # for evaluate
+        if evaluate:
+            episodes = 100  # for evaluate
+        else:
+            episodes = 10   # for training
+        print('Validating... Evaluate:',evaluate)
         for i in range(episodes):
             state = env.reset()
             episode_reward = 0
