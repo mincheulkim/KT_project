@@ -38,7 +38,7 @@ DYNAMIC_GLOBAL = False  # global path replanning과 관련. ICRA2019 는 한번�
 
 PATH_AS_INPUT = True # 221019      # waypoint(6개)를 input으로 쓸것인지 결정
 
-PLANNER_WAREHOUSE = False # 221102  # warehouse 환경일 때
+PLANNER_WAREHOUSE = True # 221102  # warehouse 환경일 때
 
 consider_ped = False
 
@@ -239,7 +239,7 @@ class GazeboEnv:
                 dot = data[i][0] * 1 + data[i][1] * 0
                 mag1 = math.sqrt(math.pow(data[i][0], 2) + math.pow(data[i][1], 2))
                 mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-                beta = math.acos(dot / (mag1 * mag2)) * np.sign(data[i][1])
+                beta = math.acos(dot / ((mag1 * mag2)+0.000000001)) * np.sign(data[i][1])
                 dist = math.sqrt(data[i][0] ** 2 + data[i][1] ** 2 + data[i][2] ** 2)
 
                 for j in range(len(self.gaps)):
@@ -401,7 +401,7 @@ class GazeboEnv:
         dot = skew_x * 1 + skew_y * 0
         mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
         mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-        beta = math.acos(dot / (mag1 * mag2))
+        beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
         if skew_y < 0:
             if skew_x < 0:
                 beta = -beta
@@ -467,7 +467,7 @@ class GazeboEnv:
             dot = skew_x * 1 + skew_y * 0
             mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
             mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-            beta = math.acos(dot / (mag1 * mag2))
+            beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
             if skew_y < 0:
                 if skew_x < 0:
                     beta = -beta
@@ -593,7 +593,7 @@ class GazeboEnv:
         dot = skew_x * 1 + skew_y * 0
         mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
         mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-        beta = math.acos(dot / (mag1 * mag2))
+        beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
 
         if skew_y < 0:
             if skew_x < 0:
@@ -695,7 +695,7 @@ class GazeboEnv:
             dot = skew_x * 1 + skew_y * 0
             mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
             mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-            beta = math.acos(dot / (mag1 * mag2))
+            beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
             if skew_y < 0:
                 if skew_x < 0:
                     beta = -beta

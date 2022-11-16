@@ -116,7 +116,7 @@ else:
 # Create a replay buffer
 memory = ReplayMemory(args.replay_size, args.seed)
 
-ckpt_path = "checkpoints/sac_checkpoint_TD3_velodyne_7000"
+ckpt_path = "checkpoints/sac_checkpoint_TD3_velodyne_5200"
 evaluate = False
 if load_model:
         agent.load_checkpoint(ckpt_path, evaluate)
@@ -224,14 +224,19 @@ for i_episode in itertools.count(1):
         
         agent.save_checkpoint(file_name, i_episode)
         
-
-    evaluation_step = 100
+    if evaluate:   #221116 1step 이후 바로 evaluate하게
+        evaluation_step = 1
+    else:
+        evaluation_step = 100
     #if i_episode % 10 == 0 and args.eval is True:
     #if i_episode % evaluation_step == 0 and i_episode != 0 and args.eval is True:
     if i_episode % evaluation_step == 0 and args.eval is True:   # for evaluate
         #print('i_episode:',i_episode)
         avg_reward = 0.
         avg_episode_length = 0.  # 221109
+        success_i=0
+        collision_i=0
+        timeout_i = 0
         #episodes = 10
         if evaluate:
             episodes = 100  # for evaluate
@@ -239,7 +244,7 @@ for i_episode in itertools.count(1):
             episodes = 10   # for training
         print('Validating... Evaluate:',evaluate)
         for i in range(episodes):
-            state = env.reset()
+            state = env.reset()    
             episode_reward = 0
             episode_length = 0    # 221109
             done = False
@@ -260,17 +265,20 @@ for i_episode in itertools.count(1):
                 if flag > 501:
                     break
             avg_reward += episode_reward
-            avg_episode_length += episode_length  # 221109
             status = 'None'
             if flag > 501:
                 status = 'Timeout'
+                timeout_i += 1
             elif done and target:
                 status = 'Success'
+                avg_episode_length += episode_length  # 221109
+                success_i += 1
             elif done:
                 status = 'Collision'
+                collision_i += 1
             print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps length:', episode_length)
         avg_reward /= episodes
-        avg_episode_length /= episodes  # 221109
+        avg_episode_length /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
 
 
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)
@@ -278,4 +286,5 @@ for i_episode in itertools.count(1):
         print("----------------------------------------")
         #print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
         print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_length, 2)))  # 221109
+        print('SR:',success_i/episodes, 'CR:',collision_i/episodes, 'TO:',timeout_i/episodes)
         print("----------------------------------------")

@@ -39,7 +39,7 @@ DYNAMIC_GLOBAL = True  # 221003    # global path replanning과 관련
 #PATH_AS_INPUT = False # 221014
 PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
 
-PLANNER_WAREHOUSE = False # 221102  # warehouse 환경일 때
+PLANNER_WAREHOUSE = True # 221102  # warehouse 환경일 때
 
 PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
@@ -242,7 +242,7 @@ class GazeboEnv:
                 dot = data[i][0] * 1 + data[i][1] * 0
                 mag1 = math.sqrt(math.pow(data[i][0], 2) + math.pow(data[i][1], 2))
                 mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-                beta = math.acos(dot / (mag1 * mag2)) * np.sign(data[i][1])
+                beta = math.acos(dot / ((mag1 * mag2)+0.000000001)) * np.sign(data[i][1])
                 dist = math.sqrt(data[i][0] ** 2 + data[i][1] ** 2 + data[i][2] ** 2)
 
                 for j in range(len(self.gaps)):
@@ -415,7 +415,7 @@ class GazeboEnv:
         dot = skew_x * 1 + skew_y * 0
         mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
         mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-        beta = math.acos(dot / (mag1 * mag2))
+        beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
         if skew_y < 0:
             if skew_x < 0:
                 beta = -beta
@@ -550,7 +550,7 @@ class GazeboEnv:
             dot = skew_x * 1 + skew_y * 0
             mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
             mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-            beta = math.acos(dot / (mag1 * mag2))
+            beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
             if skew_y < 0:
                 if skew_x < 0:
                     beta = -beta
@@ -610,7 +610,7 @@ class GazeboEnv:
             else:
                 x = np.random.uniform(-4.5, 4.5)
                 y = np.random.uniform(-4.5, 4.5)
-                position_ok = check_pos(x, y)
+                position_ok = check_pos(x, y)       
         object_state.pose.position.x = x
         object_state.pose.position.y = y
         #object_state.pose.position.z = 0.
@@ -630,7 +630,6 @@ class GazeboEnv:
         self.change_goal()
         # randomly scatter boxes in the environment
         #self.random_box()   # 220919 dynamic obstacle 추가로 일단 해제
-        #self.publish_markers([0.0, 0.0])
 
         rospy.wait_for_service("/gazebo/unpause_physics")
         try:
@@ -664,7 +663,7 @@ class GazeboEnv:
         v_state = []
         v_state[:] = self.velodyne_data[:]
         laser_state = [v_state]
-
+        
         distance = np.linalg.norm(
             [self.odom_x - self.goal_x, self.odom_y - self.goal_y]
         )
@@ -676,7 +675,7 @@ class GazeboEnv:
         dot = skew_x * 1 + skew_y * 0
         mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
         mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-        beta = math.acos(dot / (mag1 * mag2))
+        beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
 
         if skew_y < 0:
             if skew_x < 0:
@@ -788,7 +787,8 @@ class GazeboEnv:
             dot = skew_x * 1 + skew_y * 0
             mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
             mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-            beta = math.acos(dot / (mag1 * mag2))
+            #beta = math.acos(dot / (mag1 * mag2))
+            beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
             if skew_y < 0:
                 if skew_x < 0:
                     beta = -beta
@@ -801,7 +801,7 @@ class GazeboEnv:
             if theta < -np.pi:
                 theta = -np.pi - theta
                 theta = np.pi - theta
-                
+            
             distance = np.linalg.norm([self.odom_x - optimal_g_x, self.odom_y - optimal_g_y])
             
             self.temp_path_as_input[i][0] = distance
@@ -814,7 +814,7 @@ class GazeboEnv:
         if PATH_AS_INPUT:
             state = np.append(state, self.temp_path_as_input)
             #print('[reset]self.temp_path_as_input:',self.temp_path_as_input)
-        
+            
         return state
 
     def change_goal(self):   # adaptive goal positioning
