@@ -32,9 +32,9 @@ batch_size = 256  # 221007
 discount = 0.99   # 221007    # discount factor for reward (default: 0.99)
 tau = 0.005  # Soft target update variable (should be close to 0)    # target smoothing coefficient(τ) (default: 0.005)
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
-file_name = "TD3_velodyne"  # name of the file to store the policy
+file_name = "Ours"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
-load_model = True  # Weather to load a stored model   
+load_model = False  # Weather to load a stored model   
 random_near_obstacle = True  # To take random actions near obstacles or not
 save_interval = 200
 
@@ -57,7 +57,7 @@ parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
 #parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, metavar='G',
 parser.add_argument('--automatic_entropy_tuning', type=bool, default=True, metavar='G',
                     help='Automaically adjust α (default: False)')
-parser.add_argument('--seed', type=int, default=123456, metavar='N',
+parser.add_argument('--seed', type=int, default=0, metavar='N',
                     help='random seed (default: 123456)')
 #parser.add_argument('--batch_size', type=int, default=256, metavar='N',
 parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
