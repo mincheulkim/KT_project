@@ -45,7 +45,7 @@ policy_freq = 2  # Frequency of Actor network updates (delayed policy updates cy
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "TD3_velodyne_ICRA2019"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
-load_model = True  # Weather to load a stored model   
+load_model = False  # Weather to load a stored model   
 random_near_obstacle = False  # To take random actions near obstacles or not
 start_timesteps = 2e3 # 221006   # https://github.com/sfujim/TD3/blob/master/main.py 
 save_interval = 200
@@ -273,7 +273,6 @@ for i_episode in itertools.count(1):
                 if flag > 501:
                     break
             avg_reward += episode_reward
-            avg_episode_length += episode_length  # 221109
             status = 'None'
             if flag > 501:
                 status = 'Timeout'
@@ -287,7 +286,8 @@ for i_episode in itertools.count(1):
                 collision_i += 1
             print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps length:', episode_length)
         avg_reward /= episodes
-        avg_episode_length /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
+        if success_i != 0:
+            avg_episode_length /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
 
 
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)

@@ -8,6 +8,7 @@ import time
 import copy
 import planner  # 220928
 import planner_warehouse  # 221102
+import planner_U  # 221117
 from os import path
 
 import numpy as np
@@ -38,7 +39,9 @@ DYNAMIC_GLOBAL = False  # global path replanning과 관련. ICRA2019 는 한번�
 
 PATH_AS_INPUT = True # 221019      # waypoint(6개)를 input으로 쓸것인지 결정
 
-PLANNER_WAREHOUSE = True # 221102  # warehouse 환경일 때
+PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
+
+SCENARIO = 'U'    # TD3, warehouse, U
 
 consider_ped = False
 
@@ -78,6 +81,29 @@ def check_pos(x, y):
         goal_ok = False
 
     if x > 4.5 or x < -4.5 or y > 4.5 or y < -4.5:
+        goal_ok = False
+
+    return goal_ok
+
+def check_pos_U(x, y):
+    goal_ok = True
+
+    if 3.0 > x > -3.0 and 3+0.35 > y > 3-0.35:  # up
+        goal_ok = False
+
+    if 3+0.35 > x > 3-0.35 and 3 > y > -3:   # E
+        goal_ok = False
+
+    if 3.0 > x > -3.0 and -3+0.35 > y > -3-0.35:  # S
+        goal_ok = False
+
+    if -3+0.35 > x > -3-0.35 and 3 > y > -3:   # W
+        goal_ok = False
+
+    if -1.3 > x > -3.7 and -0.8 > y > -2.7:
+        goal_ok = False
+        
+    if x < -4.5 or x > 4.5 or y < -4.5 or y > 4.5:
         goal_ok = False
 
     return goal_ok
@@ -287,8 +313,25 @@ class GazeboEnv:
             #print("Spawning model: actor_id = %s", actor_id)
             x= actor_pose.position.x
             y= actor_pose.position.y
-            self.pedsim_agents_list.append([x,y])
-            #print('액터:',actor_id,'model_pose:',x, y)
+            # 221114 partial view 상황 가정
+            if PARTIAL_VIEW != True:   # fully observable일때
+                self.pedsim_agents_list.append([x,y])
+                #print('액터:',actor_id,'model_pose:',x, y)
+                
+            if PARTIAL_VIEW and SCENARIO=='TD3':   # partial view이고 TD3 환경일때
+                if -5 < y < 0:    # 아래쪽 다 보이는 경우
+                    self.pedsim_agents_list.append([x,y])
+                
+            if PARTIAL_VIEW and SCENARIO=='warehouse':  # partial view이고 warehouse 환경일때
+                if -10 < y < 10:   # 아래쪽 다 보이는 경우
+                    self.pedsim_agents_list.append([x,y])
+                    
+            if PARTIAL_VIEW and SCENARIO=='U':
+                if -1 < x < 1 and 0 < y < 10:
+                    self.pedsim_agents_list.append([x,y])
+
+        #print('페드심 리스트: ', self.pedsim_agents_list)
+
             
     def GetRGBImageObservation(self):
         try:
@@ -315,8 +358,7 @@ class GazeboEnv:
 
 
     # Perform an action and read a new state
-    def step(self, action, episode_steps):        
-        
+    def step(self, action, episode_steps):         
         target = False
         # 221005 이동하기 전 거리
         distance = np.linalg.norm([self.odom_x - self.goal_x, self.odom_y - self.goal_y])
@@ -520,14 +562,18 @@ class GazeboEnv:
         y = 0
         position_ok = False
         while not position_ok:
-            if PLANNER_WAREHOUSE:
+            if SCENARIO=='warehouse':
                 x = np.random.uniform(-9.5, 9.5)
                 y = np.random.uniform(-9.5, 9.5)
-                position_ok = check_pos(x, y)
-            else:
+                position_ok = check_pos_warehouse(x, y)
+            elif SCENARIO=='TD3':
                 x = np.random.uniform(-4.5, 4.5)
                 y = np.random.uniform(-4.5, 4.5)
-                position_ok = check_pos(x, y)
+                position_ok = check_pos(x, y)       
+            elif SCENARIO=='U':
+                x = np.random.uniform(-4.5, 4.5)
+                y = np.random.uniform(-4.5, 4.5)
+                position_ok = check_pos_U(x, y)  
         object_state.pose.position.x = x
         object_state.pose.position.y = y
         #object_state.pose.position.z = 0.
@@ -626,10 +672,12 @@ class GazeboEnv:
         #220928 최초 initial path 생성
         while True:
             try:
-                if PLANNER_WAREHOUSE:
+                if SCENARIO=='warehouse':
                     path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
-                else:
+                elif SCENARIO=='TD3':
                     path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                elif SCENARIO=='U':
+                    path = planner_U.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
                 break
             except:
                 path = [[self.goal_x, self.goal_y]]
@@ -648,34 +696,61 @@ class GazeboEnv:
         for i in range(self.path_as_input_no):
             self.path_as_input.append([self.goal_x, self.goal_y])
         self.path_as_input = np.asarray(self.path_as_input)
-        if PLANNER_WAREHOUSE:
+        if SCENARIO=='warehouse':
             # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
             if len(path) < self.path_as_input_no:
                 #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
                 self.path_as_input[:len(path), :] = path-10.0
             
-            # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+            #### 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+            ###elif len(path) > self.path_as_input_no:   # 8>5
+            ###    self.path_as_input = path[-5:, :]-10.0
+                
+            # 221114
+            # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
             elif len(path) > self.path_as_input_no:   # 8>5
-                self.path_as_input = path[-self.path_as_input_no:, :]-10.0
+                numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                    self.path_as_input[i, :] = path[number, :] - 10.0
             
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
                 self.path_as_input = path - 10.0
         
-        else:
+        elif SCENARIO=='TD3':
             # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
             if len(path) < self.path_as_input_no:
                 #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
-                self.path_as_input[:len(path), :] = path-4.5
+                self.path_as_input[:len(path), :] = path-5.5
             
-            # 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+            # 221114
+            # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
             elif len(path) > self.path_as_input_no:   # 8>5
-                self.path_as_input = path[-self.path_as_input_no:, :]-4.5
+                numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                    self.path_as_input[i, :] = path[number, :] - 5.5              
             
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
-                self.path_as_input = path - 4.5
-        #self.path_as_init = []
+                self.path_as_input = path - 5.5
+                
+        elif SCENARIO=='U':
+            # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+            if len(path) < self.path_as_input_no:
+                #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
+                self.path_as_input[:len(path), :] = path-5.5
+            
+            # 221114
+            # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
+            elif len(path) > self.path_as_input_no:   # 8>5
+                numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                    self.path_as_input[i, :] = path[number, :] - 5.5              
+            
+            # 만약 크기 같다면: 
+            elif len(path) == self.path_as_input_no:
+                self.path_as_input = path - 5.5
+
         self.path_as_init = copy.deepcopy(self.path_as_input)     # raw global path
         #print('[reset]path_as_init:',self.path_as_init)
         
@@ -738,10 +813,12 @@ class GazeboEnv:
         while not goal_ok:
             self.goal_x = self.odom_x + random.uniform(self.upper, self.lower)  
             self.goal_y = self.odom_y + random.uniform(self.upper, self.lower) # [-5, 5] -> [-10, 10]
-            if PLANNER_WAREHOUSE:
+            if SCENARIO=='warehouse':
                 goal_ok = check_pos_warehouse(self.goal_x, self.goal_y)
-            else: 
+            elif SCENARIO=='TD3': 
                 goal_ok = check_pos(self.goal_x, self.goal_y)
+            elif SCENARIO=='U':
+                goal_ok = check_pos_U(self.goal_x, self.goal_y)
 
     def random_box(self):
         # Randomly change the location of the boxes in the environment on each reset to randomize the training
@@ -852,12 +929,15 @@ class GazeboEnv:
             marker4.color.g = 1.0
             marker4.color.b = 0.0
             marker4.pose.orientation.w = 1.0
-            if PLANNER_WAREHOUSE:
+            if SCENARIO=='warehouse':
                 marker4.pose.position.x = pose[0] - 10
                 marker4.pose.position.y = pose[1] - 10 
-            else:
-                marker4.pose.position.x = pose[0] - 4.5
-                marker4.pose.position.y = pose[1] - 4.5
+            elif SCENARIO=='TD3':
+                marker4.pose.position.x = pose[0] - 5.5
+                marker4.pose.position.y = pose[1] - 5.5
+            elif SCENARIO=='U':
+                marker4.pose.position.x = pose[0] - 5.5
+                marker4.pose.position.y = pose[1] - 5.5
             marker4.pose.position.z = 0
 
             markerArray4.markers.append(marker4)

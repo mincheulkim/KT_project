@@ -120,7 +120,7 @@ ckpt_path = "checkpoints/sac_checkpoint_TD3_velodyne_5200"
 evaluate = False
 if load_model:
         agent.load_checkpoint(ckpt_path, evaluate)
-        print('잘 불러왔다.')
+        print(ckpt_path, '잘 불러왔다.')
 
 # Begin the training loop
 count_rand_actions = 0
@@ -130,7 +130,6 @@ total_numsteps = 0
 updates = 0
 
 for i_episode in itertools.count(1):
-#for i_episode in range(9999999):   # 221108
     episode_reward = 0
     episode_steps = 0
     done = False
@@ -278,7 +277,8 @@ for i_episode in itertools.count(1):
                 collision_i += 1
             print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps length:', episode_length)
         avg_reward /= episodes
-        avg_episode_length /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
+        if success_i != 0:
+            avg_episode_length /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
 
 
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)
