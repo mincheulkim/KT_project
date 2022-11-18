@@ -138,6 +138,8 @@ random_action = []
 total_numsteps = 0
 updates = 0
 
+best_avg_reward = -999.0
+
 for i_episode in itertools.count(1):
     episode_reward = 0
     episode_steps = 0
@@ -297,3 +299,9 @@ for i_episode in itertools.count(1):
         print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_length, 2)))  # 221109
         print('SR:',success_i/episodes, 'CR:',collision_i/episodes, 'TO:',timeout_i/episodes)
         print("----------------------------------------")
+        
+        if save_model:
+            if avg_reward > best_avg_reward:
+                best_avg_reward = avg_reward
+                agent.save_checkpoint("ICRA2019 best reward", 000)
+        
