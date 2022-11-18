@@ -327,7 +327,7 @@ class GazeboEnv:
                     self.pedsim_agents_list.append([x,y])
                     
             if PARTIAL_VIEW and SCENARIO=='U':
-                if -1 < x < 1 and 0 < y < 10:
+                if -1 < x < 1 and 3 < y < 5:
                     self.pedsim_agents_list.append([x,y])
 
         #print('페드심 리스트: ', self.pedsim_agents_list)

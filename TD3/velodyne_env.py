@@ -328,7 +328,7 @@ class GazeboEnv:
                     self.pedsim_agents_list.append([x,y])
                     
             if PARTIAL_VIEW and SCENARIO=='U':
-                if -1 < x < 1 and 0 < y < 10:
+                if -1 < x < 1 and 3 < y < 5:
                     self.pedsim_agents_list.append([x,y])
 
         #print('페드심 리스트: ', self.pedsim_agents_list)
@@ -1385,7 +1385,7 @@ class GazeboEnv:
                 if -10 < path[1] < 0:
                     reliability_score = 1.0
             if PARTIAL_VIEW and SCENARIO=='U':  # 
-                if -1 < path[0] < 1 and 0 < path[1] < 5.25:
+                if -1 < path[0] < 1 and 3 < path[1] < 5:
                     reliability_score = 1.0
             #2. 로봇 영역에 노드가 위치할 경우 (TODO)
             
