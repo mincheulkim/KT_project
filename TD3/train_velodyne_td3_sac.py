@@ -22,7 +22,7 @@ from gym import spaces
 
 # Set the parameters for the SAC
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # cuda or cpu
-seed = 0  # Random seed number    
+seed = 123456  # Random seed number    
 #seed = 4  # Random seed number    # 221007
 max_ep = 500  # maximum number of steps per episode
 #batch_size = 40  # Size of the mini-batch
@@ -57,7 +57,7 @@ parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
 #parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, metavar='G',
 parser.add_argument('--automatic_entropy_tuning', type=bool, default=True, metavar='G',
                     help='Automaically adjust α (default: False)')
-parser.add_argument('--seed', type=int, default=0, metavar='N',
+parser.add_argument('--seed', type=int, default=123456, metavar='N',
                     help='random seed (default: 123456)')
 #parser.add_argument('--batch_size', type=int, default=256, metavar='N',
 parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
@@ -68,7 +68,7 @@ parser.add_argument('--hidden_size', type=int, default=256, metavar='N',
                     help='hidden size (default: 256)')
 parser.add_argument('--updates_per_step', type=int, default=1, metavar='N',
                     help='model updates per simulator step (default: 1)')
-parser.add_argument('--start_steps', type=int, default=10000, metavar='N',
+parser.add_argument('--start_steps', type=int, default=1000, metavar='N',
                     help='Steps sampling random actions (default: 10000)')
 parser.add_argument('--target_update_interval', type=int, default=1, metavar='N',
                     help='Value target update per no. of updates per step (default: 1)')
@@ -116,11 +116,11 @@ else:
 # Create a replay buffer
 memory = ReplayMemory(args.replay_size, args.seed)
 
-ckpt_path = "checkpoints/sac_checkpoint_TD3_velodyne_5200"
+ckpt_path = "checkpoints/sac_checkpoint_Ours_600"
 evaluate = False
 if load_model:
         agent.load_checkpoint(ckpt_path, evaluate)
-        print(ckpt_path, '잘 불러왔다.')
+        print(ckpt_path, '를 잘 불러왔다.')
 
 # Begin the training loop
 count_rand_actions = 0
@@ -295,3 +295,4 @@ for i_episode in itertools.count(1):
             if avg_reward > best_avg_reward:
                 best_avg_reward = avg_reward
                 agent.save_checkpoint("Ours best reward", 000)
+            

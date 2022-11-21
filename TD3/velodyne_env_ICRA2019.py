@@ -105,6 +105,10 @@ def check_pos_U(x, y):
         
     if x < -4.5 or x > 4.5 or y < -4.5 or y > 4.5:
         goal_ok = False
+        
+    ## 221121 중간 사각형 안에 안생기게
+    if -3 < x < 3 and -3 < y < 3:
+        goal_ok = False
 
     return goal_ok
 
@@ -593,7 +597,6 @@ class GazeboEnv:
         self.change_goal()
         # randomly scatter boxes in the environment
         #self.random_box()   # 220919 dynamic obstacle 추가로 일단 해제
-        #self.publish_markers([0.0, 0.0])
 
         rospy.wait_for_service("/gazebo/unpause_physics")
         try:
@@ -850,13 +853,14 @@ class GazeboEnv:
         
     def publish_markers(self, action):
         # Publish visual data in Rviz
+        # marker = init goal pose
         markerArray = MarkerArray()
         marker = Marker()
         marker.header.frame_id = "odom"
         marker.type = marker.CYLINDER
         marker.action = marker.ADD
-        marker.scale.x = 0.1
-        marker.scale.y = 0.1
+        marker.scale.x = 0.2
+        marker.scale.y = 0.2
         marker.scale.z = 0.01
         marker.color.a = 1.0
         marker.color.r = 0.0

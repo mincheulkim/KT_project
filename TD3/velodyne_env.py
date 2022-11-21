@@ -106,6 +106,10 @@ def check_pos_U(x, y):
         
     if x < -4.5 or x > 4.5 or y < -4.5 or y > 4.5:
         goal_ok = False
+        
+    ## 221121 중간 사각형 안에 안생기게
+    if -3 < x < 3 and -3 < y < 3:
+        goal_ok = False
 
     return goal_ok
 
@@ -332,6 +336,7 @@ class GazeboEnv:
                     self.pedsim_agents_list.append([x,y])
 
         #print('페드심 리스트: ', self.pedsim_agents_list)
+            
             
     def GetRGBImageObservation(self):
         try:
@@ -582,7 +587,6 @@ class GazeboEnv:
                 
         
         self.publish_markers(action)   # RVIZ 상 marker publish
-        
         
         self.temp_path_as_input = copy.deepcopy(self.path_as_input)
         # 221019 self.path_as_input을 robot centric으로 변환     
@@ -858,7 +862,6 @@ class GazeboEnv:
             dot = skew_x * 1 + skew_y * 0
             mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
             mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-            #beta = math.acos(dot / (mag1 * mag2))
             beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
             if skew_y < 0:
                 if skew_x < 0:
@@ -939,13 +942,14 @@ class GazeboEnv:
         
     def publish_markers(self, action):
         # Publish visual data in Rviz
+        # marker = init goal pose
         markerArray = MarkerArray()
         marker = Marker()
         marker.header.frame_id = "odom"
         marker.type = marker.CYLINDER
         marker.action = marker.ADD
-        marker.scale.x = 0.1
-        marker.scale.y = 0.1
+        marker.scale.x = 0.2
+        marker.scale.y = 0.2
         marker.scale.z = 0.01
         marker.color.a = 1.0
         marker.color.r = 0.0
