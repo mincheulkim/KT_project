@@ -33,7 +33,7 @@
   <param name="camera_description4" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv4.xacro'"/>
   <node name="camera_spawn4" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param camera_description4 -model camera4 -x 5.3 -y 5.3 -z 2.0"/>
   <param name="camera_description5" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv5.xacro'"/>
-  <node name="camera_spawn5" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param camera_description5 -model camera5 -x -5.3 -y 5.3 -z 2.0"/>
+  <node name="camera_spawn5" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param camera_description5 -model camera5 -x -8.3 -y -4.3 -z 3.0"/>
 
 
   <!-- set use_sim_time flag -->
