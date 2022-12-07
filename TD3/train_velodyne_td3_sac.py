@@ -34,8 +34,8 @@ tau = 0.005  # Soft target update variable (should be close to 0)    # target sm
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "Ours"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
-load_model = False  # Weather to load a stored model   
-random_near_obstacle = True  # To take random actions near obstacles or not
+load_model = True  # Weather to load a stored model   
+random_near_obstacle = False  # To take random actions near obstacles or not
 save_interval = 200
 
 parser = argparse.ArgumentParser(description='PyTorch Soft Actor-Critic Args')
@@ -116,7 +116,7 @@ else:
 # Create a replay buffer
 memory = ReplayMemory(args.replay_size, args.seed)
 
-ckpt_path = "checkpoints/sac_checkpoint_Ours_600"
+ckpt_path = "checkpoints/sac_checkpoint_Ours best reward_0"
 evaluate = False
 if load_model:
         agent.load_checkpoint(ckpt_path, evaluate)
@@ -204,6 +204,11 @@ for i_episode in itertools.count(1):
         memory.push(state, action, reward, next_state, mask) # Append transition to memory
 
         state = next_state
+        
+        if episode_steps > 501:  # 221201
+            print('강제 break')
+            break
+        
 
     if total_numsteps > args.num_steps:
         break

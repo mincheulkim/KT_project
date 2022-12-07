@@ -54,7 +54,6 @@ class RrtApf:
     def calculate_apf(self, valid_nodes, attraction=0.5, repulsion=0.5):
         least_potential = np.inf
         new_node = None
-        #print('valid nodes:',valid_nodes)
         for node in valid_nodes:
             distance_to_goal = np.linalg.norm(node - self.goal)
             positive_potential = attraction * distance_to_goal

@@ -37,7 +37,8 @@ class RrtApf:
         self.came_from = {tuple(self.start): None}  # dictionary for back tracking found path
         self.distance_mat = ndimage.distance_transform_edt(obs_map/255 == 0)    # stores distance of each node from obstacle
         self.distance_mat = self.distance_mat / 40 + 0.00000001
-
+        self.pedsim_list = None
+        
     def get_nearest_node(self, node):
         min_dist = np.inf
         nearest_node = None
@@ -51,12 +52,27 @@ class RrtApf:
     def calculate_apf(self, valid_nodes, attraction=0.5, repulsion=0.5):
         least_potential = np.inf
         new_node = None
-
         for node in valid_nodes:
             distance_to_goal = np.linalg.norm(node - self.goal)
             positive_potential = attraction * distance_to_goal
             negative_potential = repulsion / self.distance_mat[node[1]][node[0]]
-            total_potential = positive_potential + negative_potential
+            
+            # 1. Realibility (as visibility)
+            realibility = 1.0
+            # 2. Density     node 주변에 사람들의 거리를 sum
+            density_sum = 0.0
+            #print(self.pedsim_list)
+            if self.pedsim_list != None:
+                for i, ped in enumerate(self.pedsim_list):
+                    px = RES*(ped[0] + 10)
+                    py = RES*(ped[1] + 10)
+                    distance = np.sqrt((node[0]-px)**2+(node[1])**2)
+                    distance = distance / 10
+                    #print(i, node, distance, ped, [px,py])
+                    density_sum += 1 / distance
+                    
+            #total_potential = positive_potential + negative_potential
+            total_potential = positive_potential + negative_potential + density_sum ## 221103
             if total_potential < least_potential:
                 least_potential = total_potential
                 new_node = node
@@ -103,7 +119,7 @@ class RrtApf:
         path.reverse()
         return np.array(path).reshape(-1,2)
 
-    def find_path(self):
+    def find_path(self, goal):   # 여기가 문제임
         for iteration in range(self.maxIter):
             random_node = self.get_random_node()
             nearest_node = self.get_nearest_node(random_node)
@@ -201,6 +217,7 @@ def get_obstacle_map(pts, pedsim_agent_list, r_x, r_y):
     
     #print('pedsim_list:',pedsim_agent_list)  # DEBUG
     # 220928 사람 추가
+    '''
     if pedsim_agent_list != None:
         for i, ped in enumerate(pedsim_agent_list):
             x = ped[0] + map_bias
@@ -209,6 +226,7 @@ def get_obstacle_map(pts, pedsim_agent_list, r_x, r_y):
             center, radius = np.array([int(x*RES),int(y*RES)]), 1 # 1*RES
             obs2 = np.linalg.norm(pts-center, axis=1) < radius
             obs = np.logical_or(obs, obs2)
+    '''
 
     # create border
     obs2 = np.zeros((height,width), dtype=bool)
@@ -231,9 +249,10 @@ def get_obstacle_map(pts, pedsim_agent_list, r_x, r_y):
     conf = cv2.dilate(conf, robot_shape)
     return conf, obs.reshape(height, width)
 
-def run_application(start, goal):
+def run_application(start, goal, pedsim_list):   # RrtApf 돌린 후 path list return
     # find path
-    planner = RrtApf(start, goal, conf, animate=False)
+    planner = RrtApf(start, goal, conf, animate=False)   # conf: obstacles?
+    planner.pedsim_list = pedsim_list
 
     if PLOT:
         ax.set_title("Searching Path")
@@ -243,7 +262,7 @@ def run_application(start, goal):
         plt.pause(0.001)    # Necessary for updating title
     
     start_time = time.perf_counter()
-    path, nodes = planner.find_path()
+    path, nodes = planner.find_path(goal)
     exec_time = time.perf_counter() - start_time
     
     if PLOT:
@@ -331,7 +350,7 @@ def main(r_x, r_y, g_x, g_y, pedsim_agents_list):   # [-4.5 ~ 4.5],
         #ax.scatter(pts[obs.flatten(),0], pts[obs.flatten(),1], s=1, c='k')
         ax.scatter(pts[obs.flatten(),0], pts[obs.flatten(),1], s=1, c='#ff7f0e', marker = '*')   # c=색깔, marker=형태   # https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.scatter.html
     
-    return run_application(start, goal)
+    return run_application(start, goal, pedsim_agents_list)
 
 if __name__ == "__main__":
     main(sys.argv)
