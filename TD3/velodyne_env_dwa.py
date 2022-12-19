@@ -12,7 +12,7 @@ import planner_U  # 221117
 import planner_graph
 #import dwa as dwa  # 221213
 import dwa_pythonrobotics as dwa_pythonrobotics
-import rvo2
+#import rvo2
 from os import path
    
 import numpy as np
@@ -1271,7 +1271,7 @@ class GazeboEnv:
         gy = self.goal_y
         skew_x = gx - rx
         skew_y = gy - ry
-        
+        '''
         
         sim = rvo2.PyRVOSimulator(1/60, 1.0, 5, 1.5, 2, 0.5, 1)   # time_step, neighborDist, maxneighbors, timehorizon, timehorizonObst, radius, maxspeed
         a0 = sim.addAgent((rx, ry))
@@ -1288,6 +1288,7 @@ class GazeboEnv:
         sim.doStep()
         
         action = sim.getAgentVelocity(0)
+        
         #action_v = np.linalg.norm([action[0],action[1]])
     
         quaternion = Quaternion(
@@ -1306,7 +1307,7 @@ class GazeboEnv:
         skew_xx = action[0]
         skew_yy = action[1]
         
-        
+        '''
         
         
         '''
