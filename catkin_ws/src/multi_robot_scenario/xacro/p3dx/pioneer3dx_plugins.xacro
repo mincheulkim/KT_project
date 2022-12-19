@@ -18,7 +18,7 @@
         <plugin name="differential_drive_controller" filename="libgazebo_ros_diff_drive.so">
             <rosDebugLevel>Debug</rosDebugLevel>
             <robotNamespace></robotNamespace>
-            <publishWheelTF>false</publishWheelTF>
+            <publishWheelTF>true</publishWheelTF>
             <!--배속걸때 문제 생기는 부분. 이걸 true->false로 바꾸면 나아짐?--><!--https://blog.csdn.net/weixin_41070687/article/details/125736727-->
             <!--publishWheelJointState>true</publishWheelJointState-->
             <publishWheelJointState>false</publishWheelJointState>   <!--221117-->

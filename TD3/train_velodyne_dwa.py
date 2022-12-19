@@ -11,12 +11,16 @@ from numpy import inf
 from torch.utils.tensorboard import SummaryWriter
 
 from replay_memory import ReplayMemory
-from velodyne_env import GazeboEnv
+from velodyne_env_dwa import GazeboEnv
 from sac import SAC, SAC_PATH
 
 import itertools
 
 from gym import spaces
+
+
+import math
+from enum import Enum
 
 
 
@@ -120,7 +124,7 @@ ckpt_path = "checkpoints/sac_checkpoint_Ours best reward_0"
 evaluate = False
 if load_model:
         agent.load_checkpoint(ckpt_path, evaluate)
-        print(ckpt_path, '를 잘 불러왔다. Evaluate 모드: ',evaluate)
+        print(ckpt_path, '를 잘 불러왔다.')
 
 # Begin the training loop
 count_rand_actions = 0
@@ -138,12 +142,15 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
+        
         if args.start_steps > total_numsteps:    # start_steps = 10000
-            #action = agent.select_action(state)    # before 221110 이거는 검증해봐야 하는 부분
-            #action = (action + np.random.normal(0, 0.2, size=action_dim)).clip(-max_action, max_action)   
             action = np.random.normal(0, 1.0, size=action_dim).clip(-max_action, max_action)   # 221110 위에 줄을 이걸로 대치해도 됨 [-1~1, -1~1]
         else:   # 여기 실제로 되는지
             action = agent.select_action(state)  # Sample action from policy
+        
+        #action = env.get_action_dwa()
+        
+        #action = env.get_action_graph()
 
         if len(memory) > args.batch_size:
             # Number of updates per step in environment
@@ -159,26 +166,10 @@ for i_episode in itertools.count(1):
                 updates += 1
         
         
-        
-        ## 221108 restore random near obstacle action
-        if random_near_obstacle:
-            if (
-                np.random.uniform(0, 1) > 0.85
-                #and min(state[4:-8]) < 0.6
-                and min(state[4:16]) < 0.6   # 라이다 좌중~우중 거리가 짧으면
-                and count_rand_actions < 1
-            ):
-                count_rand_actions = np.random.randint(8, 15)
-                random_action = np.random.uniform(-1, 1, 2)
-
-            if count_rand_actions > 0:
-                count_rand_actions -= 1
-                action = random_action
-                action[0] = -1
-        
-        
         a_in = [(action[0] + 1) / 2, action[1]]  
+        
         next_state, reward, done, target = env.step(a_in, episode_steps) # 221102
+        #print('a_in:',a_in)
         episode_steps += 1
         total_numsteps += 1
         episode_reward += reward
@@ -257,9 +248,9 @@ for i_episode in itertools.count(1):
             flag = 0
             while not done:
                 action = agent.select_action(state, evaluate=True)
+                #action = env.get_action_dwa()
+                #action = env.get_action_graph()
                 a_in = [(action[0] + 1) / 2, action[1]]  
-                #next_state, reward, done, _ = env.step(action)
-                #next_state, reward, done, _ = env.step(a_in)
                 next_state, reward, done, target = env.step(a_in, flag)
                 episode_reward += reward
                 episode_length += 1
@@ -291,7 +282,6 @@ for i_episode in itertools.count(1):
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)
 
         print("----------------------------------------")
-        #print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
         print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_length, 2)))  # 221109
         print('SR:',success_i/episodes, 'CR:',collision_i/episodes, 'TO:',timeout_i/episodes)
         print("----------------------------------------")
@@ -300,4 +290,6 @@ for i_episode in itertools.count(1):
             if avg_reward > best_avg_reward:
                 best_avg_reward = avg_reward
                 agent.save_checkpoint("Ours best reward", 000)
+ 
             
+#### 221219 여기서부터 지워
