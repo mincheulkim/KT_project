@@ -75,6 +75,12 @@ def check_pos(x, y):
     if 4-buffer_length <= x <= 5.5+buffer_length and -5.5-buffer_length <= y <= 0+buffer_length:
         goal_ok = False
         
+        
+    #### 221222 Evaluate 용 #####
+    #### eleverter scene에서 시점, 종점이 사람 지역에 안생기도록
+    #if -1.5 <= x <= 2 and -1 <= y <= 2.5:
+    #    goal_ok = False
+        
     return goal_ok
 
 
@@ -403,15 +409,14 @@ class GazeboEnv:
             self.path_i_rviz = path
         
         # 221213 그래프 플래너 관련
-        graph_path = planner_graph.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
-        self.seq_graph_path = graph_path
-        #print('그래프 패스:', graph_path)
+        if DYNAMIC_GLOBAL:
+            graph_path = planner_graph.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+            self.seq_graph_path = graph_path
+            path = graph_path
+            path = np.asarray(path)
+            self.path_i_rviz = path
         
-        path = graph_path
-        path = np.asarray(path)
-        self.path_i_rviz = path
     
-                
         # TODO sampling 방법에 대해 고려
         #############################    
         ############# 221010 고정된 5 사이즈의 path output    self.path_as_input
@@ -511,7 +516,11 @@ class GazeboEnv:
         while not position_ok:            
             x = np.random.uniform(-4.5, 4.5)
             y = np.random.uniform(-4.5, 4.5)
-            position_ok = check_pos(x, y)       
+            position_ok = check_pos(x, y)    
+            
+        # DEBUG 강제 세팅
+        #x = -4.0
+        #y = -4.0
 
         object_state.pose.position.x = x
         object_state.pose.position.y = y
@@ -529,7 +538,10 @@ class GazeboEnv:
         (_, _, self.euler) = euler_from_quaternion([object_state.pose.orientation.x, object_state.pose.orientation.y, object_state.pose.orientation.z, object_state.pose.orientation.w])
 
         # set a random goal in empty space in environment
-        self.change_goal()
+        self.change_goal()    # short-term 
+        
+        #self.change_goal_evaluate()    # 221222 for long-term
+            
         # randomly scatter boxes in the environment
         #self.random_box()   # 220919 dynamic obstacle 추가로 일단 해제
 
@@ -708,7 +720,7 @@ class GazeboEnv:
             #print('[reset]self.temp_path_as_input:',self.temp_path_as_input)
             
         return state
-
+        
     def change_goal(self):   # adaptive goal positioning
         # Place a new goal and check if its location is not on one of the obstacles
         #if self.upper < 10:    # 5
@@ -724,7 +736,18 @@ class GazeboEnv:
             self.goal_x = self.odom_x + random.uniform(self.upper, self.lower)  
             self.goal_y = self.odom_y + random.uniform(self.upper, self.lower) # [-5, 5] -> [-10, 10]
             goal_ok = check_pos(self.goal_x, self.goal_y)
-            #print('실패사례')
+            
+        ## DEBUG 강제 세팅
+        #self.goal_x = 4.0
+        #self.goal_y = 4.0
+        
+    def change_goal_evaluate(self):   # 221222
+        goal_ok = False
+
+        while not goal_ok:
+            self.goal_x = self.odom_x + random.uniform(10, -10)  
+            self.goal_y = self.odom_y + random.uniform(10, -10) # -> [-10, 10]
+            goal_ok = check_pos(self.goal_x, self.goal_y)
 
     def random_box(self):
         # Randomly change the location of the boxes in the environment on each reset to randomize the training
@@ -1178,8 +1201,6 @@ class GazeboEnv:
         # 3. Progress
         R_p = pre_dist - dist
         
-        # 4. Waypoint
-        realibility = 1.0   # 보이면 1.0, 안보이면 0.2
         '''
         ##### sparse waypoint reward ######
         ##### waypoint에 0.35 영역 내부에 있으면(존재하는 중이면) reward
@@ -1235,26 +1256,16 @@ class GazeboEnv:
     @staticmethod     
     def get_reliablity(path_as_input, PARTIAL_VIEW):
         reliablity_scores = []
-        reliability_score = 0.0
+        reliability_score = 0.2
         
         for i, path in enumerate(path_as_input):
-            #print(i, path)
-            if PARTIAL_VIEW != True:    # GT
-                reliability_score = 1.0
-            else:                       # Partial view일경우 default로 invisible로 세팅
-                reliability_score = 0.2
+            #1. CCTV 영역에 노드가 위치할 경우 (Partial observation)    
+            if PARTIAL_VIEW:
+                if (-5.5 <= path[0] <= -3.5 and -5.5 <= path[1] <= -1) or (-1.5 <= path[0] <= 0.0 and -1.0 <= path[1] <= 2.5) or (2.0 <= path[0] <= 4.0 and -5.5 <= path[1] <= 1.0):
+                    reliability_score = 1.0   # GT
+                else:
+                    reliability_score = 0.2   # Partial view일경우 default로 invisible로 세팅
 
-            #1. CCTV 영역에 노드가 위치할 경우 (Partial observation)
-            if PARTIAL_VIEW and SCENARIO=='TD3' != True:  # TD3 환경일 경우
-                if -5< path[1] <0:
-                    reliability_score = 1.0
-                    
-            if PARTIAL_VIEW and SCENARIO=='warehouse':  # warehouse 환경일 경우
-                if -10 < path[1] < 0:
-                    reliability_score = 1.0
-            if PARTIAL_VIEW and SCENARIO=='U':  # 
-                if -1 < path[0] < 1 and 3 < path[1] < 5:
-                    reliability_score = 1.0
             #2. 로봇 영역에 노드가 위치할 경우 (TODO)
             
             reliablity_scores.append([reliability_score])
@@ -1272,7 +1283,6 @@ class GazeboEnv:
         skew_x = gx - rx
         skew_y = gy - ry
         '''
-        
         sim = rvo2.PyRVOSimulator(1/60, 1.0, 5, 1.5, 2, 0.5, 1)   # time_step, neighborDist, maxneighbors, timehorizon, timehorizonObst, radius, maxspeed
         a0 = sim.addAgent((rx, ry))
         
@@ -1288,9 +1298,8 @@ class GazeboEnv:
         sim.doStep()
         
         action = sim.getAgentVelocity(0)
-        
         #action_v = np.linalg.norm([action[0],action[1]])
-    
+        '''
         quaternion = Quaternion(
             self.last_odom.pose.pose.orientation.w,
             self.last_odom.pose.pose.orientation.x,
@@ -1300,15 +1309,7 @@ class GazeboEnv:
         euler = quaternion.to_euler(degrees=False)
         angle = round(euler[2], 4)
         (_, _, self.euler) = euler_from_quaternion([self.last_odom.pose.pose.orientation.x, self.last_odom.pose.pose.orientation.y, self.last_odom.pose.pose.orientation.z, self.last_odom.pose.pose.orientation.w])
-
-        # Calculate the relative angle between the robots heading and heading toward the goal
-        #skew_x = self.goal_x - self.odom_x
-        #skew_y = self.goal_y - self.odom_y
-        skew_xx = action[0]
-        skew_yy = action[1]
-        
-        '''
-        
+      
         
         '''
         angles = np.arctan2(skew_yy,skew_xx)
@@ -1354,22 +1355,37 @@ class GazeboEnv:
         
 
         #angle += np.pi  # + 3.1415
+        temp_gx = gx
+        temp_gy = gy
+        threshold_reach = 1.0
+        
+        #print('sequenti waypoint:',self.seq_graph_path)
+        ## seq_graph_path에서 intermediat goal 설정
+        for i, path in enumerate(self.seq_graph_path):
+            robot_to_goal = np.sqrt((gx-rx)**2+(gy-ry)**2)
+            wpt_to_goal = np.sqrt((gx-path[0])**2+(gy-path[1])**2)
+            robot_to_wpt = np.sqrt((path[0]-rx)**2+(path[1]-ry)**2)
+            #print('로봇-골 거리:',robot_to_goal, '웨이포인트-골 거리:',wpt_to_goal)
+            #print('현재 :',i,'번째의 패스 :',path)
+            if wpt_to_goal < robot_to_goal and robot_to_wpt>threshold_reach:
+                temp_gx = path[0]
+                temp_gy = path[1]
+                break
+            
+        #print('imediate goal:',temp_gx, temp_gy)
+        ped_list = self.pedsim_agents_list
         
         self.dwa_x[0] = rx
         self.dwa_x[1] = ry
         self.dwa_x[2] = angle
         self.dwa_x[3] = self.last_odom.twist.twist.linear.x
         self.dwa_x[4] = self.last_odom.twist.twist.angular.z
-        #print('twist topic:',self.last_odom.twist.twist.linear.x, self.last_odom.twist.twist.angular.z)
 
         ### dwa_pythonrobotics
-        #print('self.dwa_x:',self.dwa_x)
-        #print('로봇:',rx, ry, 'goal:',gx, gy, angle)
-        #print(self.dwa_x)
-        uu, xx = dwa_pythonrobotics.main(rx, ry, gx, gy, angle, self.dwa_x)   
-        #print('벨로시티:',uu)
-        #self.dwa_x = copy.deepcopy(xx)
-        
+        ## 1. global path의 waypoints들을 고려해서 이동
+        uu, xx = dwa_pythonrobotics.main(rx, ry, temp_gx, temp_gy, angle, self.dwa_x, ped_list)   
+        ## 2. fixed global goal만 고려 (naive)
+        #uu, xx = dwa_pythonrobotics.main(rx, ry, gx, gy, angle, self.dwa_x)     
         
         
         
@@ -1379,13 +1395,8 @@ class GazeboEnv:
         w = to_go_rot - angle
         
         w = 1.0
-        #print('uu:',uu, xx)
-        return [uu[0], -uu[1]]
-    
+        return [uu[0], -uu[1]]    
         #return (1.0, w)
-        
-        
-        
         #return [action_v, action_w]    # [-1, 1] -> [0, 1]로 변환. [-1, 1] -> [1, 1]로 변환
         #return uu
     

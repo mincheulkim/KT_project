@@ -143,12 +143,15 @@ for i_episode in itertools.count(1):
 
     while not done:
         
-        if args.start_steps > total_numsteps:    # start_steps = 10000
+        if args.start_steps > total_numsteps and load_model == False:    # start_steps = 10000
             action = np.random.normal(0, 1.0, size=action_dim).clip(-max_action, max_action)   # 221110 위에 줄을 이걸로 대치해도 됨 [-1~1, -1~1]
         else:   # 여기 실제로 되는지
             action = agent.select_action(state)  # Sample action from policy
-        
-        #action = env.get_action_dwa()
+        a_in = [(action[0] + 1) / 2, action[1]] 
+        '''
+        action = env.get_action_dwa()
+        a_in = action
+        '''
         
         #action = env.get_action_graph()
 
@@ -169,7 +172,6 @@ for i_episode in itertools.count(1):
         a_in = [(action[0] + 1) / 2, action[1]]  
         
         next_state, reward, done, target = env.step(a_in, episode_steps) # 221102
-        #print('a_in:',a_in)
         episode_steps += 1
         total_numsteps += 1
         episode_reward += reward
@@ -230,7 +232,8 @@ for i_episode in itertools.count(1):
     if i_episode % evaluation_step == 0 and args.eval is True:   # for evaluate
         #print('i_episode:',i_episode)
         avg_reward = 0.
-        avg_episode_length = 0.  # 221109
+        avg_episode_time = 0.  # 221109
+        avg_episode_length = 0. # 221222
         success_i=0
         collision_i=0
         timeout_i = 0
@@ -243,17 +246,23 @@ for i_episode in itertools.count(1):
         for i in range(episodes):
             state = env.reset()    
             episode_reward = 0
-            episode_length = 0    # 221109
+            episode_time = 0    # 221109
+            episode_length = 0
             done = False
             flag = 0
             while not done:
                 action = agent.select_action(state, evaluate=True)
-                #action = env.get_action_dwa()
-                #action = env.get_action_graph()
                 a_in = [(action[0] + 1) / 2, action[1]]  
+                '''
+                action = env.get_action_dwa()
+                a_in = action
+                '''
+                #action = env.get_action_graph()
+                
                 next_state, reward, done, target = env.step(a_in, flag)
                 episode_reward += reward
-                episode_length += 1
+                episode_time += 1
+                episode_length += a_in[0]  # 221225 linear_v를 이동거리로 계산
 
 
                 state = next_state
@@ -268,21 +277,23 @@ for i_episode in itertools.count(1):
                 timeout_i += 1
             elif done and target:
                 status = 'Success'
-                avg_episode_length += episode_length  # 221109
+                avg_episode_time += episode_time  # 221109
+                avg_episode_length += episode_length
                 success_i += 1
             elif done:
                 status = 'Collision'
                 collision_i += 1
-            print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps length:', episode_length)
+            print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps time:', episode_time, 'eps length:', episode_length)
         avg_reward /= episodes
         if success_i != 0:
-            avg_episode_length /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
+            avg_episode_time /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
+            avg_episode_length /= success_i
 
 
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)
 
         print("----------------------------------------")
-        print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_length, 2)))  # 221109
+        print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel time: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_time, 2), round(avg_episode_length, 2)))  # 221109
         print('SR:',success_i/episodes, 'CR:',collision_i/episodes, 'TO:',timeout_i/episodes)
         print("----------------------------------------")
         

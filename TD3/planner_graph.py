@@ -101,7 +101,8 @@ def heuristic(n, pedsim_list):    # 각 노드별 휴리스틱 값
         #print('페드심 리스트:',pedsim_list)
         for i, ped in enumerate(pedsim_list):
             label = set_graph_node(ped[0], ped[1])
-            H_dist.update({label:H_dist[label]+10})  # 딕셔너리 값 업데이트 https://dojang.io/mod/page/view.php?id=2307
+            if label =='A' or label =='C' or label == 'B' or label=='G':   # 221220 cctv visibile area에 따라 업데이트
+                H_dist.update({label:H_dist[label]+10})  # 딕셔너리 값 업데이트 https://dojang.io/mod/page/view.php?id=2307
             
     #print('Heuristic table:',H_dist)
     return H_dist[n]
@@ -109,8 +110,9 @@ def heuristic(n, pedsim_list):    # 각 노드별 휴리스틱 값
 #Describe your graph here
 Graph_nodes = {
     'A': [('D', 1.75),('F', 4.19076)],
-    'B': [('G', 1.767767),('K', 2.85044),('L', 3.71652),('H', 2.136),('C', 4.03113)],
-    'C': [('B', 4.03113), ('H', 4.25), ('I', 3.91312)],
+    #'B': [('G', 1.767767),('K', 2.85044),('L', 3.71652),('H', 2.136),('C', 4.03113)],
+    'B': [('G', 1.767767),('K', 2.85044),('H', 2.136),('C', 4.03113)],
+    'C': [('B', 4.03113), ('H', 4.25), ('I', 3.91312),('E',2.657536)],
     'D': [('A', 1.75), ('G', 1.767767), ('E', 2.610077)],
     'E': [('D', 2.610077), ('C', 2.657536)],
     'F': [('A', 4.19076), ('J', 3.40037)],
@@ -118,8 +120,9 @@ Graph_nodes = {
     'H': [('B', 2.136), ('C', 4.25), ('I', 3.640055)],
     'I': [('H', 3.640055), ('C', 3.91312)],
     'J': [('F', 3.40037), ('K', 3.75)],
-    'K': [('J', 3.75), ('L', 3.75)],
-    'L': [('K', 3.75), ('B', 3.71652)],
+    'K': [('J', 3.75), ('L', 3.75),('G',3.16228),('B',2.85044)],
+    #'L': [('K', 3.75), ('B', 3.71652)],
+    'L': [('K', 3.75)],
 }
 
 def set_graph_node(x, y):

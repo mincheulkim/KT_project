@@ -133,10 +133,22 @@ class Config:
                             [4.0, 2.5],   # R
                             [4.5, 2.5],   # R
                             [5.0, 2.5],   # R
-                            [5.5, 2.5],   # R
-                            
-                            
+                            [5.5, 2.5]   # R
                             ])
+        
+        
+        
+        for i in range(24):   # upper boundary
+            self.ob = np.append(self.ob, np.array([-6.0+(0.5*i), 6.0]).reshape(1,2), axis=0)
+            
+        for i in range(24):   # lower boundary
+            self.ob = np.append(self.ob, np.array([-6.0+(0.5*i), -6.0]).reshape(1,2), axis=0)
+            
+        for i in range(24):   # left boundary
+            self.ob = np.append(self.ob, np.array([-6.0, -6.0+(0.5*i)]).reshape(1,2), axis=0)
+            
+        for i in range(24):   # right boundary
+            self.ob = np.append(self.ob, np.array([6.0, -6.0+(0.5*i)]).reshape(1,2), axis=0)
 
     @property
     def robot_type(self):
@@ -317,6 +329,7 @@ def plot_robot(x, y, yaw, config):  # pragma: no cover
         plt.plot([x, out_x], [y, out_y], "-k")
 
 '''
+# 오리지널
 def main(rx= -3.0, ry = 4.0, gx=1.0, gy=2.0, yaw = -math.pi*2 / 8.0, dwa_x=np.asarray([-3, -3, math.pi/8.0, 0.0, 0.0]), robot_type=RobotType.circle):
     print(__file__ + " start!!")
     # initial state [x(m), y(m), yaw(rad), v(m/s), omega(rad/s)]
@@ -365,7 +378,8 @@ def main(rx= -3.0, ry = 4.0, gx=1.0, gy=2.0, yaw = -math.pi*2 / 8.0, dwa_x=np.as
 '''    
     
 
-def main(rx = -3.0, ry=-3.0, gx=4.0, gy=4.0, yaw = math.pi/8.0, dwa_x=np.asarray([-3, -3, math.pi/8.0, 0.0, 0.0]), robot_type=RobotType.circle):
+# Ours
+def main(rx = -3.0, ry=-3.0, gx=4.0, gy=4.0, yaw = math.pi/8.0, dwa_x=np.asarray([-3, -3, math.pi/8.0, 0.0, 0.0]), ped_list=[], robot_type=RobotType.circle):
     #print(__file__ + " start!!")
     # initial state [x(m), y(m), yaw(rad), v(m/s), omega(rad/s)]
     
@@ -384,6 +398,19 @@ def main(rx = -3.0, ry=-3.0, gx=4.0, gy=4.0, yaw = math.pi/8.0, dwa_x=np.asarray
     config.robot_type = robot_type
     trajectory = np.array(x)
     ob = config.ob
+    
+    ## 221220 로봇 센서 arange에 맞춰 사람을 obs로 추가
+    robot_sensor_range = 3.0
+    if ped_list != None:
+        for i, ped in enumerate(ped_list):
+            robot_to_ped = np.sqrt((ped[0]-rx)**2+(ped[1]-ry)**2)
+            if robot_to_ped <= robot_sensor_range:
+                pedd = np.array(ped)
+                pedd = np.reshape(pedd, (1,2))               
+                ob = np.append(ob, np.array(pedd), axis=0)
+    
+    #print('ob:',ob, ob.shape)   # 76, 2  
+    
     
     u, predicted_trajectory = dwa_control(x, config, goal, ob)
     x = motion(x, u, config.dt)  # simulate robot

@@ -1,8 +1,7 @@
 <robot name="camera4">
     <link name="world"/>
     <joint name="world_joint" type="fixed">
-        <origin xyz="0.0 0 0" rpy="0 0.78535 3.92675"/>
-        <!--r: roll(왼쪽으로 기움), p(pitch) y: yaw(좌우), 양수일 수록 밑을 내려봄, 45도 좌로-->
+        <origin xyz="0.0 0 0" rpy="0 0.592675 -1.5707"/>
         <parent link="world"/>
         <child link="cctv4"/>
     </joint>
