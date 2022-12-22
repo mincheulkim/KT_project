@@ -50,8 +50,6 @@ PARTIAL_VIEW = False ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반
 
 SCENARIO = 'U'    # TD3, warehouse, U
 
-consider_ped = False
-
 
 # Check if the random goal position is located on an obstacle and do not accept it if it is
 def check_pos(x, y):
@@ -387,12 +385,7 @@ class GazeboEnv:
         robot_state = [distance, theta, action[0], action[1]]    # 상대거리, 헤딩, v, w
         
         state = np.append(laser_state, robot_state)              # 20 + 4
-        # 220927
-        '''
-        if consider_ped:
-            state = np.append(laser_state, robot_state)  # 20 + 4 + 12
-            state = np.append(state, self.pedsim_agents_distance)  # 20 + 4 + 12
-        '''
+
         self.path_as_input = copy.deepcopy(self.path_as_init)
         #print('[step]self.path_as_init;',self.path_as_init)   # global paoint에서 path as init 보여줌
         
@@ -611,14 +604,7 @@ class GazeboEnv:
         robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
         
         state = np.append(laser_state, robot_state)  # laser 정보(20) + 로봇 state(4)
-        # 220927
-        if consider_ped:
-            print('l:',laser_state)
-            print('r:',robot_state)
-            print('e:',self.pedsim_agents_distance)
-            state = np.append(laser_state, robot_state)  # 20 + 4 + 12
-            state = np.append(state, self.pedsim_agents_distance)  # 20 + 4 + 12
-        
+
         #220928 최초 initial path 생성
         '''
         while True:
@@ -1039,144 +1025,6 @@ class GazeboEnv:
             return True, True, min_laser
         return False, False, min_laser
 
-    @staticmethod
-    def get_reward(target, collision, action, min_laser):
-        if target:
-            return 100.0
-        elif collision:
-            return -100.0
-        else:
-            r3 = lambda x: 1 - x if x < 1 else 0.0
-            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
-        
-    @staticmethod  # 221005
-    def get_reward_new(target, collision, action, min_laser, delta_distance):
-        '''
-        if target:
-            return 100.0
-        elif collision:
-            return -100.0
-        else:
-            r3 = lambda x: 1 - x if x < 1 else 0.0
-            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
-        '''    
-        ### 0. 리워드 initialize
-        reward_g = delta_distance * 30
-        reward_c = 0
-        reward_w = 0
-        
-        ### 1. 도착했을 때
-        if target:
-            reward_g = 100
-        ### 2. 충돌했을 때
-        if collision:
-            reward_c = -100
-        ### 3. rotation penalty
-        if np.abs(action[1]) > 1.05:
-            reward_w = -0.1 * np.abs(action[1])
-            print('rotation penalty!')
-        ### 4. reminscure reward
-        r3 = lambda x: 1 - x if x < 1 else 0.0
-        reward_r = action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
-            
-        reward = reward_g + reward_c + reward_w + reward_r
-
-        return reward        
-    
-    
-    @staticmethod     # 221014  waypoint에 가까워 지면 sparse reward
-    def get_reward_path(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y):
-        reward_w_sum = 0.0    # 각 웨이포인트별 먼 거리 penalty
-        realibility = 1.0
-
-        for i, path in enumerate(path_as_input):
-            #print(i, path)
-            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
-            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
-            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-            if (dist_robot_goal > dist_waypoint_goal or dist_waypoint_goal < 0.11) and dist_waypoint_robot < 0.35:   # 로봇보다 골에 가까운 웨이포인트가 남아있을 경우
-                reward_w_sum += 0.5 *realibility               # 완화값 * 신뢰도 * 로봇-웨이포인트 거리(로봇이 웨이포인트와 멀리 있음 페널티)
-        if target:
-            return 100.0
-        elif collision:
-            return -100.0
-        else:
-            r3 = lambda x: 1 - x if x < 1 else 0.0
-            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 - reward_w_sum
-        
-    @staticmethod     
-    def get_reward_path_221101(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y):
-        ## 221101 reward design main idea: R_guldering 참조
-        # R = R_g + R_wpt + R_o + R_v
-        R_g = 0.0
-        R_c = 0.0
-        R_p = 0.0
-        R_w = 0.0
-        R_laser = 0.0
-        R_t = 0.0  # total
-        num_valid_wpt = 0
-        # 1. Success
-        if target:
-            R_g = 100.0
-            
-        # 2. Collision
-        if collision:
-            R_c = -100
-            
-        # 3. Progress
-        R_p = pre_dist - dist
-        
-        # 4. Waypoint
-        realibility = 1.0   # 보이면 1.0, 안보이면 0.2
-        '''
-        ##### sparse waypoint reward ######
-        ##### waypoint에 0.35 영역 내부에 있으면(존재하는 중이면) reward
-        for i, path in enumerate(path_as_input):
-            #print(i, path)
-            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
-            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
-            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
-            if (dist_robot_goal > dist_waypoint_goal or i==4) and dist_waypoint_robot < 0.35:   # 로봇보다 골에 가까운 웨이포인트가 남아있을 경우
-                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
-                #reward_w_sum += 0.5 *realibility               # 완화값 * 신뢰도 * 로봇-웨이포인트 거리(로봇이 웨이포인트와 멀리 있음 페널티)
-                reward = 0.35 - dist_waypoint_robot   # 221101
-                R_w += reward * realibility
-        '''
-                
-        ##### dense waypoint reward #####
-        for i, path in enumerate(path_as_input):
-            #print(i, path)
-            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
-            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
-            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
-            if (dist_robot_goal > dist_waypoint_goal or i==4):   # candidate waypoint 선정
-                num_valid_wpt += 1
-                pre_dist_wpt = np.sqrt((path[0] - pre_odom_x)**2 + (path[1] - pre_odom_y)**2)
-                cur_dist_wpt = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-                diff_dist_wpt = pre_dist_wpt - cur_dist_wpt
-                if diff_dist_wpt >= 0:
-                    reward = 2 * diff_dist_wpt
-                else:
-                    reward = diff_dist_wpt
-                
-                reward = reward * realibility   # 221101
-                R_w += reward * realibility
-        R_w = R_w / num_valid_wpt
-        
-        # 5. Laser distance
-        if min_laser < 0.5:
-            R_laser = min_laser - 0.5
-        
-        # total
-        R_t = R_g + R_c + R_p + R_p + R_w + R_laser
-        #print('tot:',R_t, '골:',R_g, '충돌:',R_c, '전진:',R_p, '웨이포인트:',R_w,'(',num_valid_wpt,')', '레이저:',R_laser)
-        dx = odom_x - pre_odom_x
-        dy = odom_y - pre_odom_y
-        
-
-        return R_t
     
     
     @staticmethod     
