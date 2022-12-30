@@ -43,8 +43,8 @@ TIME_DELTA = 0.1
 
 DYNAMIC_GLOBAL = True  # 221003    # global path replanning과 관련
 
-#PATH_AS_INPUT = False # 221014
-PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
+PATH_AS_INPUT = False # 221014
+#PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
 
 PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
@@ -78,10 +78,119 @@ def check_pos(x, y):
     #### eleverter scene에서 시점, 종점이 사람 지역에 안생기도록
     #if -1.5 <= x <= 2 and -1 <= y <= 2.5:
     #    goal_ok = False
+    
+    
+    '''
+    if -3.8 > x > -6.2 and 6.2 > y > 3.8:
+            goal_ok = False
+
+    if -1.3 > x > -2.7 and 4.7 > y > -0.2:
+        goal_ok = False
+
+    if -0.3 > x > -4.2 and 2.7 > y > 1.3:
+        goal_ok = False
+
+    if -0.8 > x > -4.2 and -2.3 > y > -4.2:
+        goal_ok = False
+
+    if -1.3 > x > -3.7 and -0.8 > y > -2.7:
+        goal_ok = False
+
+    if 4.2 > x > 0.8 and -1.8 > y > -3.2:
+        goal_ok = False
+
+    if 4 > x > 2.5 and 0.7 > y > -3.2:
+        goal_ok = False
+
+    if 6.2 > x > 3.8 and -3.3 > y > -4.2:
+        goal_ok = False
+
+    if 4.2 > x > 1.3 and 3.7 > y > 1.5:
+        goal_ok = False
+
+    if -3.0 > x > -7.2 and 0.5 > y > -1.5:
+        goal_ok = False
+
+    if x > 4.5 or x < -4.5 or y > 4.5 or y < -4.5:
+        goal_ok = False
+    '''
         
     return goal_ok
 
+def check_pos_U(x, y):
+    goal_ok = True
 
+    if 3.0 > x > -3.0 and 3+0.35 > y > 3-0.35:  # up
+        goal_ok = False
+
+    if 3+0.35 > x > 3-0.35 and 3 > y > -3:   # E
+        goal_ok = False
+
+    if 3.0 > x > -3.0 and -3+0.35 > y > -3-0.35:  # S
+        goal_ok = False
+
+    if -3+0.35 > x > -3-0.35 and 3 > y > -3:   # W
+        goal_ok = False
+
+    if -1.3 > x > -3.7 and -0.8 > y > -2.7:
+        goal_ok = False
+        
+    if x < -4.5 or x > 4.5 or y < -4.5 or y > 4.5:
+        goal_ok = False
+        
+    ## 221121 중간 사각형 안에 안생기게
+    if -3 < x < 3 and -3 < y < 3:
+        goal_ok = False
+
+    return goal_ok
+
+
+def check_pos_warehouse(x, y):   # 221102
+    goal_ok = True
+    # wall2
+    if -9.0 > x > -1.0 and -6.0 > y > -10.0:
+        goal_ok = False
+    # wall3
+    if -9.0 > x > -10.0 and 9.0 > y > -10.0:
+        goal_ok = False
+    # NW three pannels
+    if -0.0 > x > -7 and 7.3 > y > 5.5:
+        goal_ok = False
+    # NW two pannels
+    if -8.8 > x > -4.2 and 3 > y > 1:
+        goal_ok = False
+    # control panel
+    if 2.0701+0.4336 > x > 2.0701-0.4336 and 1.1622+0.3 > y > 1.1622-0.3:
+        goal_ok = False
+    # rack1
+    if 7.35056+0.4222 > x > 7.35056-0.4222 and 1.7443+0.9779 > y > 1.7443-0.9779:
+        goal_ok = False
+    # rack2
+    if 5.36795+0.4222 > x > 5.36795-0.4222 and 1.7443+0.9779 > y > 1.7443-0.9779:
+        goal_ok = False
+    # rack3
+    if 7.001420+0.4222 > x > 7.001420-0.4222 and -7.646700+1.95581 > y > -7.646700-1.95581:
+        goal_ok = False
+    # rack4
+    if 4.97338+0.4222 > x > 4.97338-0.4222 and -7.646700+1.95581 > y > -7.646700-1.95581:
+        goal_ok = False
+    # rack5
+    if 2.669490+0.4222 > x > 2.669490-0.4222 and -7.646700+1.95581 > y > -7.646700-1.95581:
+        goal_ok = False
+    # pole1
+    if 5.02174+0.245805 > x > 5.02174-0.245805 and -2.39478+0.245805 > y > -2.39478-0.245805:
+        goal_ok = False
+    # pole2
+    if 0.470710+0.245805 > x > 0.470710-0.245805 and -2.39478+0.245805 > y > -2.39478-0.245805:
+        goal_ok = False
+    # pole3
+    if -3.93786+0.245805 > x > -3.93786-0.245805 and -2.39478+0.245805 > y > -2.39478-0.245805:
+        goal_ok = False
+    # 전체 지도 [-10, 10] 넘어가는 경우    # 221108
+    if x < -10 or x > 10 or y < -10 or y > 10:
+        goal_ok = False
+        
+    return goal_ok
 
 
 class GazeboEnv:
@@ -121,7 +230,7 @@ class GazeboEnv:
         self.set_self_state.pose.orientation.w = 1.0
         
         self.seq_graph_path = None  # 221214
-        
+    
         self.distOld = math.sqrt(math.pow(self.odom_x - self.goal_x, 2)+ math.pow(self.odom_y - self.goal_y, 2))
         self.gaps = [[-np.pi / 2 - 0.03, -np.pi / 2 + np.pi / self.environment_dim]]
         for m in range(self.environment_dim - 1):
@@ -347,7 +456,7 @@ class GazeboEnv:
         )
         euler = quaternion.to_euler(degrees=False)
         angle = round(euler[2], 4)
-        (_, _, self.euler) = euler_from_quaternion([self.last_odom.pose.pose.orientation.x, self.last_odom.pose.pose.orientation.y, self.last_odom.pose.pose.orientation.z, self.last_odom.pose.pose.orientation.w])
+        (_, _, self.euler) = euler_from_quaternion([self.last_odom.pose.pose.orientation.x, self.last_odom.pose.pose.orientation.y, self.last_odom.pose.pose.orientation.z, self.last_odom.pose.pose.orientation.w])    
         # Calculate distance to the goal from the robot
         distance = np.linalg.norm(
             [self.odom_x - self.goal_x, self.odom_y - self.goal_y]
@@ -391,9 +500,19 @@ class GazeboEnv:
         
         
         # 221114 Reliability checker   TODO
+        # input: path_as_input
+        # method: partial observation area에 또는 robot visible area에 위치하면 reliability = 1.0, 아니면 0.2
+        # output: realibility
         reliability_score = self.get_reliablity(self.path_as_input, PARTIAL_VIEW)
 
-        reward = self.get_reward_path_221114(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y, reliability_score)
+
+        if PATH_AS_INPUT:
+            #reward = self.get_reward_path(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y)
+            #reward = self.get_reward_path_221101(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
+            reward = self.get_reward_path_221114(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y, reliability_score)
+        else:
+            reward = self.get_reward(target, collision, action, min_laser)
+        
         
         #220928 path 생성
         # 정적 생성(option 1)
@@ -1025,8 +1144,16 @@ class GazeboEnv:
             return True, True, min_laser
         return False, False, min_laser
 
-    
-    
+    @staticmethod
+    def get_reward(target, collision, action, min_laser):
+        if target:
+            return 100.0
+        elif collision:
+            return -100.0
+        else:
+            r3 = lambda x: 1 - x if x < 1 else 0.0
+            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
+        
     @staticmethod     
     def get_reward_path_221114(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y, relliability_score):
         ## 221101 reward design main idea: R_guldering 참조

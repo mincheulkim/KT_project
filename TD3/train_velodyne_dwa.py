@@ -38,7 +38,7 @@ tau = 0.005  # Soft target update variable (should be close to 0)    # target sm
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "Ours"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
-load_model = True  # Weather to load a stored model   
+load_model = False  # Weather to load a stored model   
 random_near_obstacle = False  # To take random actions near obstacles or not
 save_interval = 200
 
@@ -66,7 +66,8 @@ parser.add_argument('--seed', type=int, default=123456, metavar='N',
 #parser.add_argument('--batch_size', type=int, default=256, metavar='N',
 parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
                     help='batch size (default: 256)')
-parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
+#parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
+parser.add_argument('--num_steps', type=int, default=100000001, metavar='N',
                     help='maximum number of steps (default: 1000000)')
 parser.add_argument('--hidden_size', type=int, default=256, metavar='N',
                     help='hidden size (default: 256)')
@@ -109,8 +110,8 @@ max_action = 1
 
 action_bound = [[0, -1], [1, 1]] 
 action_bound = spaces.Box(low=np.array([0.0, -1.0]), high=np.array([1.0, 1.0]), dtype=np.float32)
-PATH_AS_INPUT = True
-#PATH_AS_INPUT = False
+#PATH_AS_INPUT = True
+PATH_AS_INPUT = False
 if PATH_AS_INPUT:
     agent = SAC_PATH(state_dim, action_bound, args) 
 else:
@@ -124,7 +125,7 @@ ckpt_path = "checkpoints/sac_checkpoint_Ours best reward_0"
 evaluate = False
 if load_model:
         agent.load_checkpoint(ckpt_path, evaluate)
-        print(ckpt_path, '를 잘 불러왔다.')
+        print(ckpt_path, '를 잘 불러왔다. Evaluate 모드: ',evaluate)
 
 # Begin the training loop
 count_rand_actions = 0
@@ -142,7 +143,7 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
-        
+                
         if args.start_steps > total_numsteps and load_model == False:    # start_steps = 10000
             action = np.random.normal(0, 1.0, size=action_dim).clip(-max_action, max_action)   # 221110 위에 줄을 이걸로 대치해도 됨 [-1~1, -1~1]
         else:   # 여기 실제로 되는지
@@ -169,7 +170,7 @@ for i_episode in itertools.count(1):
                 updates += 1
         
         
-        a_in = [(action[0] + 1) / 2, action[1]]  
+        a_in = [(action[0] + 1) / 2, action[1]]    
         
         next_state, reward, done, target = env.step(a_in, episode_steps) # 221102
         episode_steps += 1
