@@ -46,7 +46,7 @@ DYNAMIC_GLOBAL = True  # 221003    # global path replanning과 관련
 #PATH_AS_INPUT = False # 221014
 PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
 
-PARTIAL_VIEW = False ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
+PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
 SCENARIO = 'U'    # TD3, warehouse, U
 
