@@ -43,8 +43,8 @@ TIME_DELTA = 0.1
 
 DYNAMIC_GLOBAL = True  # 221003    # global path replanning과 관련
 
-PATH_AS_INPUT = False # 221014
-#PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
+#PATH_AS_INPUT = False # 221014
+PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
 
 PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
@@ -76,8 +76,8 @@ def check_pos(x, y):
         
     #### 221222 Evaluate 용 #####
     #### eleverter scene에서 시점, 종점이 사람 지역에 안생기도록
-    #if -1.5 <= x <= 2 and -1 <= y <= 2.5:
-    #    goal_ok = False
+    if -1.5 <= x <= 2 and -1 <= y <= 2.5:
+        goal_ok = False
     
     
     '''
@@ -354,8 +354,12 @@ class GazeboEnv:
             #print("Spawning model: actor_id = %s", actor_id)
             x= actor_pose.position.x
             y= actor_pose.position.y
-            # 일단은 다 넘김
-            self.pedsim_agents_list.append([x,y])
+            if PARTIAL_VIEW != True:   # fully observable일때
+                self.pedsim_agents_list.append([x,y])
+                
+            elif PARTIAL_VIEW:   # partial view이고 dwa 환경일때
+                if (-5.5 <= x <= -3.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -1.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 1.0):
+                    self.pedsim_agents_list.append([x,y])
                 
         #print('페드심 리스트: ', self.pedsim_agents_list)
             
@@ -429,6 +433,7 @@ class GazeboEnv:
         #self.harris_corder_detector(self.rgb_cv_cctv1)
         
         # 220927 사람 global 정보 받아옴
+        '''
         if self.pedsim_agents_list != None:
             self.pedsim = self.pedsim_agents_list
             # 사람 rel_dist 구하기
@@ -437,7 +442,7 @@ class GazeboEnv:
                 y = ped[1] - self.odom_y
                 rel_dist =  math.sqrt(math.pow(x, 2) + math.pow(y, 2))
                 self.pedsim_agents_distance[i] = rel_dist
-        #print('pedsim_list:',self.pedsim_agents_distance)
+        '''
         
         # read velodyne laser state
         done, collision, min_laser = self.observe_collision(self.velodyne_data)   # 0.35보다 min_laser 작으면 충돌, 아니면 return
@@ -677,6 +682,7 @@ class GazeboEnv:
         #self.rgb_cv_cctv1 = self.GetRGBImageObservation()
         
         # 220927 pedsim 정보 받아옴
+        '''
         if self.pedsim_agents_list != None:
             self.pedsim = self.pedsim_agents_list
             # 사람 rel_dist 구하기
@@ -685,6 +691,7 @@ class GazeboEnv:
                 y = ped[1] - self.odom_y
                 rel_dist =  math.sqrt(math.pow(x, 2) + math.pow(y, 2))
                 self.pedsim_agents_distance[i] = rel_dist
+        '''
 
         v_state = []
         v_state[:] = self.velodyne_data[:]

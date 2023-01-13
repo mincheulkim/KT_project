@@ -110,8 +110,8 @@ max_action = 1
 
 action_bound = [[0, -1], [1, 1]] 
 action_bound = spaces.Box(low=np.array([0.0, -1.0]), high=np.array([1.0, 1.0]), dtype=np.float32)
-#PATH_AS_INPUT = True
-PATH_AS_INPUT = False
+PATH_AS_INPUT = True
+#PATH_AS_INPUT = False
 if PATH_AS_INPUT:
     agent = SAC_PATH(state_dim, action_bound, args) 
 else:
@@ -148,7 +148,8 @@ for i_episode in itertools.count(1):
             action = np.random.normal(0, 1.0, size=action_dim).clip(-max_action, max_action)   # 221110 위에 줄을 이걸로 대치해도 됨 [-1~1, -1~1]
         else:   # 여기 실제로 되는지
             action = agent.select_action(state)  # Sample action from policy
-        a_in = [(action[0] + 1) / 2, action[1]] 
+        #a_in = [(action[0] + 1) / 2, action[1]] 
+        a_in = action # 230111
         '''
         action = env.get_action_dwa()
         a_in = action
@@ -168,10 +169,7 @@ for i_episode in itertools.count(1):
                 writer.add_scalar('loss/entropy_loss', ent_loss, updates)
                 writer.add_scalar('entropy_temprature/alpha', alpha, updates)
                 updates += 1
-        
-        
-        a_in = [(action[0] + 1) / 2, action[1]]    
-        
+                
         next_state, reward, done, target = env.step(a_in, episode_steps) # 221102
         episode_steps += 1
         total_numsteps += 1
@@ -253,7 +251,8 @@ for i_episode in itertools.count(1):
             flag = 0
             while not done:
                 action = agent.select_action(state, evaluate=True)
-                a_in = [(action[0] + 1) / 2, action[1]]  
+                #a_in = [(action[0] + 1) / 2, action[1]]  
+                a_in = action # 230111
                 '''
                 action = env.get_action_dwa()
                 a_in = action

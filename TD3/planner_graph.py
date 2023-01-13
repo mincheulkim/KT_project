@@ -103,6 +103,11 @@ def heuristic(n, pedsim_list):    # 각 노드별 휴리스틱 값
             label = set_graph_node(ped[0], ped[1])
             if label =='A' or label =='C' or label == 'B' or label=='G':   # 221220 cctv visibile area에 따라 업데이트
                 H_dist.update({label:H_dist[label]+10})  # 딕셔너리 값 업데이트 https://dojang.io/mod/page/view.php?id=2307
+                
+    # propagation 반영
+    # TODO orientation and velocity bin 생성 및 regression
+    # 인접 노드 판단 및 cosine similarity 계산
+    # cosine 가중치와 빈값을 인접 노드에 토스
             
     #print('Heuristic table:',H_dist)
     return H_dist[n]
