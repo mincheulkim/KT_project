@@ -10,6 +10,8 @@ import planner  # 220928
 import planner_warehouse  # 221102
 import planner_U  # 221117
 import planner_graph
+#from stastar.planner import Planner as dstar_planner  # 230119
+import dstar_lite_planner  # 230119
 #import dwa as dwa  # 221213
 import dwa_pythonrobotics as dwa_pythonrobotics
 #import rvo2
@@ -48,7 +50,7 @@ PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 
 
 PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
-SCENARIO = 'U'    # TD3, warehouse, U
+SCENARIO = 'DWA'    # TD3, warehouse, U
 
 
 # Check if the random goal position is located on an obstacle and do not accept it if it is
@@ -526,12 +528,32 @@ class GazeboEnv:
             self.path_i_rviz = path
         
         # 221213 그래프 플래너 관련
-        if DYNAMIC_GLOBAL:
+        #if DYNAMIC_GLOBAL:
+        #if DYNAMIC_GLOBAL and self.pedsim_agents_list is not None:
+        if DYNAMIC_GLOBAL and episode_steps%20 ==0:
+            '''
+            ### 1. 그래프 플래너
             graph_path = planner_graph.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
             self.seq_graph_path = graph_path
             path = graph_path
+            '''
+            while True:  # ADDED
+                try:
+                    ### 230119 dstar lite planner
+                    path = dstar_lite_planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                    break
+                except:
+                    path = [[self.goal_x, self.goal_y]]
+                    print('글로벌 step 예외사항')
+                    break
+                
             path = np.asarray(path)
             self.path_i_rviz = path
+
+                #print('패스:',path)
+        else:
+            path = self.path_as_init
+            
         
     
         # TODO sampling 방법에 대해 고려
@@ -750,11 +772,22 @@ class GazeboEnv:
         '''
             
         # 221213 그래프 플래너 관련
-        graph_path = planner_graph.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
-        self.seq_graph_path = graph_path
+        ### 1. graph planner
+        ####graph_path = planner_graph.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+        ### 2. dstar lite planner  230119
         
+        while True:
+            try:
+                graph_path = dstar_lite_planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                break
+            except:
+                graph_path =[[self.goal_x, self.goal_y]]
+                break
+        
+        self.seq_graph_path = graph_path
         path = graph_path
         path = np.asarray(path)
+        #print('패스:',path)
         
         self.path_i_prev = path
         self.path_i_rviz = path
@@ -769,6 +802,7 @@ class GazeboEnv:
         self.path_as_input = np.asarray(self.path_as_input)
         
         # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+        #print(path)
         if len(path) < self.path_as_input_no:
             #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
             self.path_as_input[:len(path), :] = path
@@ -850,8 +884,8 @@ class GazeboEnv:
             goal_ok = check_pos(self.goal_x, self.goal_y)
             
         ## DEBUG 강제 세팅
-        #self.goal_x = 4.0
-        #self.goal_y = 4.0
+        self.goal_x = 4.0
+        self.goal_y = 4.0
         
     def change_goal_evaluate(self):   # 221222
         goal_ok = False
@@ -980,6 +1014,9 @@ class GazeboEnv:
             elif SCENARIO=='U':
                 marker4.pose.position.x = pose[0] - 5.5
                 marker4.pose.position.y = pose[1] - 5.5
+            elif SCENARIO=='DWA':
+                marker4.pose.position.x = pose[0]
+                marker4.pose.position.y = pose[1]
             marker4.pose.position.z = 0
 
             markerArray4.markers.append(marker4)

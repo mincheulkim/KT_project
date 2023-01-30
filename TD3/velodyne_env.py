@@ -9,6 +9,7 @@ import copy
 import planner  # 220928
 import planner_warehouse  # 221102
 import planner_U  # 221117
+import planner_DWA
 from os import path
    
 import numpy as np
@@ -42,9 +43,8 @@ PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 
 
 PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
-SCENARIO = 'U'    # TD3, warehouse, U
+SCENARIO = 'DWA'    # TD3, warehouse, U, DWA
 
-consider_ped = False
 
 
 # Check if the random goal position is located on an obstacle and do not accept it if it is
@@ -161,6 +161,37 @@ def check_pos_warehouse(x, y):   # 221102
         
     return goal_ok
 
+def check_pos_DWA(x, y):   # 230126
+    # 221219 buffer 추가
+    #buffer_length = 0.25
+    buffer_length = 0.5
+    goal_ok = True
+    #print('야')
+    
+    # 밖으로 나가는 것도 고려해야 함
+    if x <= -5.5+buffer_length or x>= 5.5-buffer_length or y <= -5.5+buffer_length or y> 5.5-buffer_length:
+        goal_ok = False
+
+    if -3.5-buffer_length <= x <= -1.5+buffer_length and -1-buffer_length <= y <= 2.5+buffer_length:
+        goal_ok = False
+
+    if 0-buffer_length <= x <= 2+buffer_length and -2.5-buffer_length <= y <= 0+buffer_length:
+        goal_ok = False
+
+    if 2-buffer_length <= x <= 5.5 and 2.5-buffer_length <= y <= 2.5 + buffer_length:
+        goal_ok = False
+
+    if 4-buffer_length <= x <= 5.5+buffer_length and -5.5-buffer_length <= y <= 0+buffer_length:
+        goal_ok = False
+        
+        
+    #### 221222 Evaluate 용 #####
+    #### eleverter scene에서 시점, 종점이 사람 지역에 안생기도록
+    if -1.5 <= x <= 2 and -1 <= y <= 2.5:
+        goal_ok = False
+        
+    return goal_ok
+
 
 class GazeboEnv:
     """Superclass for all Gazebo environments."""
@@ -186,7 +217,6 @@ class GazeboEnv:
         self.last_odom = None
         self.pedsim_agents_list = None
         self.human_num = 12
-        self.pedsim_agents_distance = np.ones(self.human_num) * 99.0
 
         self.set_self_state = ModelState()
         self.set_self_state.model_name = "r1"
@@ -334,6 +364,10 @@ class GazeboEnv:
             if PARTIAL_VIEW and SCENARIO=='U':
                 if -1 < x < 1 and 3 < y < 5:
                     self.pedsim_agents_list.append([x,y])
+            
+            if PARTIAL_VIEW and SCENARIO=='DWA':   # partial view이고 dwa 환경일때
+                if (-5.5 <= x <= -3.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -1.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 1.0):
+                    self.pedsim_agents_list.append([x,y])
 
         #print('페드심 리스트: ', self.pedsim_agents_list)
             
@@ -406,16 +440,6 @@ class GazeboEnv:
         ### 220920 edge detector (Harris corner detector)
         #self.harris_corder_detector(self.rgb_cv_cctv1)
         
-        # 220927 사람 global 정보 받아옴
-        if self.pedsim_agents_list != None:
-            self.pedsim = self.pedsim_agents_list
-            # 사람 rel_dist 구하기
-            for i, ped in enumerate(self.pedsim):
-                x = ped[0] - self.odom_x
-                y = ped[1] - self.odom_y
-                rel_dist =  math.sqrt(math.pow(x, 2) + math.pow(y, 2))
-                self.pedsim_agents_distance[i] = rel_dist
-        #print('pedsim_list:',self.pedsim_agents_distance)
         
         # read velodyne laser state
         done, collision, min_laser = self.observe_collision(self.velodyne_data)   # 0.35보다 min_laser 작으면 충돌, 아니면 return
@@ -473,12 +497,7 @@ class GazeboEnv:
         robot_state = [distance, theta, action[0], action[1]]    # 상대거리, 헤딩, v, w
         
         state = np.append(laser_state, robot_state)              # 20 + 4
-        # 220927
-        '''
-        if consider_ped:
-            state = np.append(laser_state, robot_state)  # 20 + 4 + 12
-            state = np.append(state, self.pedsim_agents_distance)  # 20 + 4 + 12
-        '''
+
         self.path_as_input = copy.deepcopy(self.path_as_init)
         #print('[step]self.path_as_init;',self.path_as_init)   # global paoint에서 path as init 보여줌
         
@@ -497,8 +516,6 @@ class GazeboEnv:
         else:
             reward = self.get_reward(target, collision, action, min_laser)
         
-        # 221005
-        #reward = self.get_reward_new(target, collision, action, min_laser, self.pre_distance - self.distance)  # 221005
         
         #220928 path 생성
         # 정적 생성(option 1)
@@ -509,7 +526,19 @@ class GazeboEnv:
         # 동적 생성(option 2)
         # try, excep: https://dojang.io/mod/page/view.php?id=2398
         #if DYNAMIC_GLOBAL:
-        if DYNAMIC_GLOBAL and episode_steps%20 ==0:
+        
+        
+        # Waypoint replanning 조건 230130
+        RECAL_WPT = False
+        for i, waypoint in enumerate(self.path_as_init):
+            wpt_distance = np.linalg.norm(waypoint - [self.odom_x, self.odom_y])
+            #print(i, waypoint, wpt_distance)
+            if wpt_distance < 1.5:    # 1.5 as ahead distance
+                RECAL_WPT = True
+        
+        #if DYNAMIC_GLOBAL and episode_steps%20 ==0:   # 선택 1(fixed rewrind)
+        if DYNAMIC_GLOBAL and RECAL_WPT:               # 아무 웨이포인트나 1.5안에 들어오면 replanning
+        
             while True:
                 try:
                     if SCENARIO=='warehouse':
@@ -518,6 +547,8 @@ class GazeboEnv:
                         path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
                     elif SCENARIO=='U':
                         path = planner_U.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
+                    elif SCENARIO=='DWA':
+                        path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
                     self.path_i_rviz = path
                     break
                 except:
@@ -544,10 +575,11 @@ class GazeboEnv:
                 # 221114
                 # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
                 elif len(path) > self.path_as_input_no:   # 8>5
+                     # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
                     numbers = np.random.choice(range(0, len(path)), 5, replace = False)
                     for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
                         self.path_as_input[i, :] = path[number, :] - 10.0
-                
+                                            
                 # 만약 크기 같다면: 
                 elif len(path) == self.path_as_input_no:
                     self.path_as_input = path - 10.0
@@ -581,10 +613,78 @@ class GazeboEnv:
                 # 만약 크기 같다면: 
                 elif len(path) == self.path_as_input_no:
                     self.path_as_input = path - 5.5
-            
+                    
+            elif SCENARIO=='DWA':
+                # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+                if len(path) < self.path_as_input_no:
+                    #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
+                    self.path_as_input[:len(path), :] = path-5.5
+                
+                # 만약 path가 더 길다면:
+                elif len(path) > self.path_as_input_no:   # 8>5
+                    # 아래 샘플링 방법 중 3개 선택
+                    
+                    '''
+                    # Sampling 1. 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)
+                    numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                    for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                        #print('전',i, self.path_as_input[i, :])
+                        self.path_as_input[i, :] = path[number, :] - 5.5
+                        #print(i, self.path_as_input[i, :])
+                        
+                    '''
+                    '''
+                    # 230127 Sampling 2. 패스중 5개를 uniform하게 샘플링
+                    #print('오리지널 패스:',path)
+                    divdiv = int(len(path) / self.path_as_input_no)   # e.g. 13/5 = 2.6 --int--> 2
+                    for i in range(self.path_as_input_no):
+                        #print(i, divdiv, len(path))
+                        #print((i+1)*divdiv)
+                        self.path_as_input[i,:] = path[(i+1)*divdiv-1, :]-5.5
+                    '''
+                        
+                    # 230130 Sampling 3. 패스중 landmark selection
+                    # landmark: 로봇이 이동간 가장 큰 변화를 해야 하는 곳(굴곡이 큰곳)
+                    # visibility: 현재 cctv가 보고 있는곳
+                    # near_human: 패스 주변 반경에 사람 수
+                    #print('랜피스:',len(path))
+                    top_k_list = []
+                    for i, node in enumerate(path):
+                        
+                        def getAngle(a, b, c):
+                            ang = math.degrees(math.atan2(c[1]-b[1], c[0]-b[0]) - math.atan2(a[1]-b[1], a[0]-b[0]))
+                            return ang + 360 if ang < 0 else ang
+                        if i!=0 and i<len(path)-1:
+                            #print(i, getAngle(path[i-1],path[i],path[i+1]))
+                            top_k_list.append(getAngle(path[i-1],path[i],path[i+1]))
+                    #print(top_k_list)
+                    if len(top_k_list)<=4:
+                        top_k_list.append(top_k_list[-1])
+                    #print('넨피:',np.argpartition(top_k_list, -5)[-5:])
+                    order_by_desc = np.argpartition(top_k_list, -5)[-5:]
+                    
+                    for i, pros in enumerate(order_by_desc):
+                        self.path_as_input[i,:] = path[pros,:]-5.5
+                        
+ 
+                        
+                        
+                        
+                    
+                # 만약 크기 같다면: 
+                elif len(path) == self.path_as_input_no:
+                    self.path_as_input = path - 5.5
+                    
             self.path_as_init = self.path_as_input
             
-                
+        ### TODO adaptiveavgpooling2D
+        ### m = nn.AdpativeAvgPool1d(5)
+        ### input1 = torch.rand(1, 64, 8)
+        ### input2 = torch.rand(1, 64, 13)
+        ### m(input1), m(input2) -> [1, 64, 5]
+        
+        #print('패스 애즈 이닛:',self.path_as_init)        
+        #print('패스:',self.path_as_input)
         
         self.publish_markers(action)   # RVIZ 상 marker publish
         
@@ -638,7 +738,7 @@ class GazeboEnv:
         return state, reward, done, target
 
     def reset(self):
-        
+        time.sleep(TIME_DELTA)  # 필요?
         # Resets the state of the environment and returns an initial observation.
         rospy.wait_for_service("/gazebo/reset_world")
         try:
@@ -667,6 +767,19 @@ class GazeboEnv:
                 x = np.random.uniform(-4.5, 4.5)
                 y = np.random.uniform(-4.5, 4.5)
                 position_ok = check_pos_U(x, y)    
+            elif SCENARIO=='DWA':
+                x = np.random.uniform(-4.5, 4.5)
+                y = np.random.uniform(-4.5, 4.5)
+                position_ok = check_pos_DWA(x, y)
+                
+        
+        '''
+        ### DEGUB 용
+        x = -4.0
+        y = -4.0
+        '''
+        
+            
         object_state.pose.position.x = x
         object_state.pose.position.y = y
         #object_state.pose.position.z = 0.
@@ -683,9 +796,15 @@ class GazeboEnv:
         (_, _, self.euler) = euler_from_quaternion([object_state.pose.orientation.x, object_state.pose.orientation.y, object_state.pose.orientation.z, object_state.pose.orientation.w])
 
         # set a random goal in empty space in environment
-        self.change_goal()
+        self.change_goal()    # short-term 
         # randomly scatter boxes in the environment
         #self.random_box()   # 220919 dynamic obstacle 추가로 일단 해제
+        
+        '''
+        ### DEBUG 용
+        self.goal_x = 4.0
+        self.goal_y = 4.0
+        '''        
 
         rospy.wait_for_service("/gazebo/unpause_physics")
         try:
@@ -706,16 +825,6 @@ class GazeboEnv:
         # 220915 cctv1 cv정보 받아옴
         #self.rgb_cv_cctv1 = self.GetRGBImageObservation()
         
-        # 220927 pedsim 정보 받아옴
-        if self.pedsim_agents_list != None:
-            self.pedsim = self.pedsim_agents_list
-            # 사람 rel_dist 구하기
-            for i, ped in enumerate(self.pedsim):
-                x = ped[0] - self.odom_x
-                y = ped[1] - self.odom_y
-                rel_dist =  math.sqrt(math.pow(x, 2) + math.pow(y, 2))
-                self.pedsim_agents_distance[i] = rel_dist
-
         v_state = []
         v_state[:] = self.velodyne_data[:]
         laser_state = [v_state]
@@ -753,14 +862,7 @@ class GazeboEnv:
         robot_state = [distance, theta, 0.0, 0.0]   # 골까지의 거리, 로봇 현재 heading, init_v=0, init_w=0 (4개)
         
         state = np.append(laser_state, robot_state)  # laser 정보(20) + 로봇 state(4)
-        # 220927
-        if consider_ped:
-            print('l:',laser_state)
-            print('r:',robot_state)
-            print('e:',self.pedsim_agents_distance)
-            state = np.append(laser_state, robot_state)  # 20 + 4 + 12
-            state = np.append(state, self.pedsim_agents_distance)  # 20 + 4 + 12
-        
+
         #220928 최초 initial path 생성
         while True:
             try:
@@ -770,6 +872,8 @@ class GazeboEnv:
                     path = planner.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
                 elif SCENARIO=='U':
                     path = planner_U.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                elif SCENARIO=='DWA':
+                    path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
                 break
             except:
                 path = [[self.goal_x, self.goal_y]]
@@ -842,9 +946,60 @@ class GazeboEnv:
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
                 self.path_as_input = path - 5.5
+                
+        elif SCENARIO=='DWA':
+            # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+            if len(path) < self.path_as_input_no:
+                #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
+                self.path_as_input[:len(path), :] = path-5.5
+            
+            # 만약 path가 더 길다면:
+            elif len(path) > self.path_as_input_no:   # 8>5
+                '''
+                # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
+                numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                    self.path_as_input[i, :] = path[number, :] - 5.5
+                '''
+                '''
+                # 230127 패스중 5개를 uniform하게 샘플링
+                divdiv = int(len(path) / self.path_as_input_no)   # e.g. 13/5 = 2.6 --int--> 2
+                for i in range(self.path_as_input_no):
+                    #print(i, divdiv, len(path))
+                    #print((i+1)*divdiv)
+                    self.path_as_input[i,:] = path[(i+1)*divdiv-1, :]-5.5       
+                '''    
+                # 230130 Sampling 3. 패스중 landmark selection
+                # landmark: 로봇이 이동간 가장 큰 변화를 해야 하는 곳(굴곡이 큰곳)
+                # visibility: 현재 cctv가 보고 있는곳
+                # near_human: 패스 주변 반경에 사람 수
+                #print('랜피스:',len(path))
+                top_k_list = []
+                for i, node in enumerate(path):
+                    
+                    def getAngle(a, b, c):
+                        ang = math.degrees(math.atan2(c[1]-b[1], c[0]-b[0]) - math.atan2(a[1]-b[1], a[0]-b[0]))
+                        return ang + 360 if ang < 0 else ang
+                    if i!=0 and i<len(path)-1:
+                        #print(i, getAngle(path[i-1],path[i],path[i+1]))
+                        top_k_list.append(getAngle(path[i-1],path[i],path[i+1]))
+                #print(top_k_list)
+                #print('넨피:',np.argpartition(top_k_list, -5)[-5:])
+                order_by_desc = np.argpartition(top_k_list, -5)[-5:]
+                
+                for i, pros in enumerate(order_by_desc):
+                    self.path_as_input[i,:] = path[pros,:]-5.5                    
+
+            
+            # 만약 크기 같다면: 
+            elif len(path) == self.path_as_input_no:
+                self.path_as_input = path - 5.5
 
         self.path_as_init = copy.deepcopy(self.path_as_input)     # raw global path
         #print('[reset]path_as_init:',self.path_as_init)
+
+        
+        
         
         self.publish_markers([0.0, 0.0])
 
@@ -911,6 +1066,9 @@ class GazeboEnv:
                 goal_ok = check_pos(self.goal_x, self.goal_y)
             elif SCENARIO=='U':
                 goal_ok = check_pos_U(self.goal_x, self.goal_y)
+            elif SCENARIO=='DWA':
+                goal_ok = check_pos_DWA(self.goal_x, self.goal_y)
+                
 
     def random_box(self):
         # Randomly change the location of the boxes in the environment on each reset to randomize the training
@@ -1029,6 +1187,9 @@ class GazeboEnv:
                 marker4.pose.position.x = pose[0] - 5.5
                 marker4.pose.position.y = pose[1] - 5.5
             elif SCENARIO=='U':
+                marker4.pose.position.x = pose[0] - 5.5
+                marker4.pose.position.y = pose[1] - 5.5
+            elif SCENARIO=='DWA':
                 marker4.pose.position.x = pose[0] - 5.5
                 marker4.pose.position.y = pose[1] - 5.5
             marker4.pose.position.z = 0
@@ -1369,6 +1530,79 @@ class GazeboEnv:
 
 
     @staticmethod     
+    def get_reward_path_230126(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y, relliability_score):
+        ## 221101 reward design main idea: R_guldering 참조
+        # R = R_g + R_wpt + R_o + R_v
+        R_g = 0.0
+        R_c = 0.0
+        R_p = 0.0
+        R_w = 0.0
+        R_laser = 0.0
+        R_t = 0.0  # total
+        num_valid_wpt = 0
+        # 1. Success
+        if target:
+            R_g = 100.0
+            
+        # 2. Collision
+        if collision:
+            R_c = -100
+            
+        # 3. Progress
+        R_p = pre_dist - dist
+        
+        '''
+        ##### sparse waypoint reward ######
+        ##### waypoint에 0.35 영역 내부에 있으면(존재하는 중이면) reward
+        for i, path in enumerate(path_as_input):
+            #print(i, path)
+            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
+            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
+            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
+            if (dist_robot_goal > dist_waypoint_goal or i==4) and dist_waypoint_robot < 0.35:   # 로봇보다 골에 가까운 웨이포인트가 남아있을 경우
+                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
+                #reward_w_sum += 0.5 *realibility               # 완화값 * 신뢰도 * 로봇-웨이포인트 거리(로봇이 웨이포인트와 멀리 있음 페널티)
+                reward = 0.35 - dist_waypoint_robot   # 221101
+                R_w += reward * realibility
+        '''
+                
+        ##### 221114 dense waypoint reward with reliability #####
+        for i, path in enumerate(path_as_input):
+            #print(i, path)
+            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
+            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
+            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
+            if (dist_robot_goal > dist_waypoint_goal or i==4):   # candidate waypoint 선정
+                num_valid_wpt += 1
+                pre_dist_wpt = np.sqrt((path[0] - pre_odom_x)**2 + (path[1] - pre_odom_y)**2)
+                cur_dist_wpt = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
+                diff_dist_wpt = pre_dist_wpt - cur_dist_wpt
+                if diff_dist_wpt >= 0:
+                    reward = 2 * diff_dist_wpt
+                else:
+                    reward = diff_dist_wpt
+                
+                reward = reward * relliability_score[i][0]   # 221101
+                
+                R_w += reward * relliability_score[i][0]
+        R_w = R_w / num_valid_wpt
+        
+        # 5. Laser distance
+        if min_laser < 0.5:
+            R_laser = min_laser - 0.5
+        
+        # total
+        R_t = R_g + R_c + R_p + R_p + R_w + R_laser
+        #print('tot:',R_t, '골:',R_g, '충돌:',R_c, '전진:',R_p, '웨이포인트:',R_w,'(',num_valid_wpt,')', '레이저:',R_laser)
+        dx = odom_x - pre_odom_x
+        dy = odom_y - pre_odom_y
+        
+
+        return R_t
+
+    @staticmethod     
     def get_reliablity(path_as_input, PARTIAL_VIEW):
         reliablity_scores = []
         reliability_score = 0.0
@@ -1391,6 +1625,16 @@ class GazeboEnv:
             if PARTIAL_VIEW and SCENARIO=='U':  # 
                 if -1 < path[0] < 1 and 3 < path[1] < 5:
                     reliability_score = 1.0
+            if PARTIAL_VIEW and SCENARIO=='DWA':
+                if (-5.5 <= path[0] <= -3.5 and -5.5 <= path[1] <= -1) or (-1.5 <= path[0] <= 0.0 and -1.0 <= path[1] <= 2.5) or (2.0 <= path[0] <= 4.0 and -5.5 <= path[1] <= 1.0):
+                    reliability_score = 1.0   # GT
+                else:
+                    reliability_score = 0.2   # Partial view일경우 default로 invisible로 세팅
+
+                    
+                    
+                    
+                    
             #2. 로봇 영역에 노드가 위치할 경우 (TODO)
             
             reliablity_scores.append([reliability_score])

@@ -26,15 +26,15 @@ seed = 123456  # Random seed number
 #seed = 4  # Random seed number    # 221007
 max_ep = 500  # maximum number of steps per episode
 #batch_size = 40  # Size of the mini-batch
-batch_size = 256  # 221007
-#batch_size = 200  # 221007
+#batch_size = 256  # 221007
+batch_size = 512  # 221007
 #discount = 0.99999  # Discount factor to calculate the discounted future reward (should be close to 1)  
 discount = 0.99   # 221007    # discount factor for reward (default: 0.99)
 tau = 0.005  # Soft target update variable (should be close to 0)    # target smoothing coefficient(τ) (default: 0.005)
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "Ours"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
-load_model = True  # Weather to load a stored model   
+load_model = False  # Weather to load a stored model   
 random_near_obstacle = False  # To take random actions near obstacles or not
 save_interval = 200
 
@@ -62,7 +62,8 @@ parser.add_argument('--seed', type=int, default=123456, metavar='N',
 #parser.add_argument('--batch_size', type=int, default=256, metavar='N',
 parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
                     help='batch size (default: 256)')
-parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
+#parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
+parser.add_argument('--num_steps', type=int, default=100000001, metavar='N',
                     help='maximum number of steps (default: 1000000)')
 parser.add_argument('--hidden_size', type=int, default=256, metavar='N',
                     help='hidden size (default: 256)')
@@ -142,8 +143,10 @@ for i_episode in itertools.count(1):
             #action = agent.select_action(state)    # before 221110 이거는 검증해봐야 하는 부분
             #action = (action + np.random.normal(0, 0.2, size=action_dim)).clip(-max_action, max_action)   
             action = np.random.normal(0, 1.0, size=action_dim).clip(-max_action, max_action)   # 221110 위에 줄을 이걸로 대치해도 됨 [-1~1, -1~1]
+            a_in = [(action[0] + 1) / 2, action[1]] 
         else:   # 여기 실제로 되는지
             action = agent.select_action(state)  # Sample action from policy
+            a_in = action # 230111
 
         if len(memory) > args.batch_size:
             # Number of updates per step in environment
@@ -239,7 +242,8 @@ for i_episode in itertools.count(1):
     if i_episode % evaluation_step == 0 and args.eval is True:   # for evaluate
         #print('i_episode:',i_episode)
         avg_reward = 0.
-        avg_episode_length = 0.  # 221109
+        avg_episode_time = 0.  # 221109
+        avg_episode_length = 0. # 221222
         success_i=0
         collision_i=0
         timeout_i = 0
@@ -252,17 +256,20 @@ for i_episode in itertools.count(1):
         for i in range(episodes):
             state = env.reset()    
             episode_reward = 0
-            episode_length = 0    # 221109
+            episode_time = 0    # 221109            
+            episode_length = 0
             done = False
             flag = 0
             while not done:
                 action = agent.select_action(state, evaluate=True)
-                a_in = [(action[0] + 1) / 2, action[1]]  
+                #a_in = [(action[0] + 1) / 2, action[1]]  
+                a_in = action # 230111
                 #next_state, reward, done, _ = env.step(action)
                 #next_state, reward, done, _ = env.step(a_in)
                 next_state, reward, done, target = env.step(a_in, flag)
                 episode_reward += reward
-                episode_length += 1
+                episode_time += 1
+                episode_length += a_in[0]  # 221225 linear_v를 이동거리로 계산
 
 
                 state = next_state
@@ -277,22 +284,23 @@ for i_episode in itertools.count(1):
                 timeout_i += 1
             elif done and target:
                 status = 'Success'
-                avg_episode_length += episode_length  # 221109
+                avg_episode_time += episode_time  # 221109
+                avg_episode_length += episode_length
                 success_i += 1
             elif done:
                 status = 'Collision'
                 collision_i += 1
-            print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps length:', episode_length)
+            print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps time:', episode_time, 'eps length:', episode_length)
         avg_reward /= episodes
         if success_i != 0:
-            avg_episode_length /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
+            avg_episode_time /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
+            avg_episode_length /= success_i
 
 
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)
 
         print("----------------------------------------")
-        #print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
-        print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_length, 2)))  # 221109
+        print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel time: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_time, 2), round(avg_episode_length, 2)))  # 221109
         print('SR:',success_i/episodes, 'CR:',collision_i/episodes, 'TO:',timeout_i/episodes)
         print("----------------------------------------")
         

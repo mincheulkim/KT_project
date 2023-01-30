@@ -40,7 +40,7 @@ file_name = "Ours"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
 load_model = False  # Weather to load a stored model   
 random_near_obstacle = False  # To take random actions near obstacles or not
-save_interval = 200
+save_interval = 500
 
 parser = argparse.ArgumentParser(description='PyTorch Soft Actor-Critic Args')
 parser.add_argument('--env-name', default="HalfCheetah-v2",
@@ -146,10 +146,12 @@ for i_episode in itertools.count(1):
                 
         if args.start_steps > total_numsteps and load_model == False:    # start_steps = 10000
             action = np.random.normal(0, 1.0, size=action_dim).clip(-max_action, max_action)   # 221110 위에 줄을 이걸로 대치해도 됨 [-1~1, -1~1]
+            a_in = [(action[0] + 1) / 2, action[1]] 
         else:   # 여기 실제로 되는지
             action = agent.select_action(state)  # Sample action from policy
+            a_in = action # 230111
         #a_in = [(action[0] + 1) / 2, action[1]] 
-        a_in = action # 230111
+        #a_in = action # 230111
         '''
         action = env.get_action_dwa()
         a_in = action
