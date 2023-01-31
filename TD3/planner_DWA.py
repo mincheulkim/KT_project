@@ -206,7 +206,7 @@ def get_obstacle_map(pts, pedsim_agent_list, r_x, r_y):
     #obs = np.logical_or(obs, obs2)
     
     #print('pedsim_list:',pedsim_agent_list)  # DEBUG
-    # 220928 사람 추가
+    # 230131 사람 추가
     
     if pedsim_agent_list != None:
         for i, ped in enumerate(pedsim_agent_list):
@@ -329,7 +329,6 @@ def main(r_x, r_y, g_x, g_y, pedsim_agents_list):   # [-4.5 ~ 4.5],
     Y, X = np.mgrid[0:height, 0:width]
     
     pts = np.array([X.ravel(), Y.ravel()]).T
-    #print('pts:',pts)
 
     # create obstacle map
     conf, obs = get_obstacle_map(pts, pedsim_agents_list, r_x, r_y)
@@ -346,7 +345,7 @@ def main(r_x, r_y, g_x, g_y, pedsim_agents_list):   # [-4.5 ~ 4.5],
     if PLOT:
         fig, ax = plt.subplots()
         ax.axis('equal')
-        # plt.subplots_adjust(bottom=0.15)
+        #plt.subplots_adjust(bottom=0.15)
         #ax.scatter(pts[obs.flatten(),0], pts[obs.flatten(),1], s=1, c='k')
         ax.scatter(pts[obs.flatten(),0], pts[obs.flatten(),1], s=1, c='#ff7f0e', marker = '*')   # c=색깔, marker=형태   # https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.scatter.html
     

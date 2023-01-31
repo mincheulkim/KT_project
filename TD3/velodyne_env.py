@@ -10,6 +10,7 @@ import planner  # 220928
 import planner_warehouse  # 221102
 import planner_U  # 221117
 import planner_DWA
+import planner_astar # 230131
 from os import path
    
 import numpy as np
@@ -265,8 +266,8 @@ class GazeboEnv:
         self.publisher2 = rospy.Publisher("linear_velocity", MarkerArray, queue_size=1)
         self.publisher3 = rospy.Publisher("angular_velocity", MarkerArray, queue_size=1)
         self.publisher4 = rospy.Publisher("waypoints", MarkerArray, queue_size=1)
-        self.publisher5 = rospy.Publisher("optimal_goal", MarkerArray, queue_size=3)
-        self.publisher6 = rospy.Publisher("path_as_init", MarkerArray, queue_size=10)   # 221020
+        self.publisher5 = rospy.Publisher("optimal_goal", MarkerArray, queue_size=1)
+        self.publisher6 = rospy.Publisher("path_as_init", MarkerArray, queue_size=1)   # 221020
         self.velodyne = rospy.Subscriber(
             "/velodyne_points", PointCloud2, self.velodyne_callback, queue_size=1
         )
@@ -348,6 +349,13 @@ class GazeboEnv:
             #print("Spawning model: actor_id = %s", actor_id)
             x= actor_pose.position.x
             y= actor_pose.position.y
+            #print(actor_id, x, y)
+            actor_twist = actor.twist   # 230131
+            vx = actor_twist.linear.x
+            vy = actor_twist.linear.y
+            #print(actor_id, vx, vy)
+            
+            
             # 221114 partial view 상황 가정
             if PARTIAL_VIEW != True:   # fully observable일때
                 self.pedsim_agents_list.append([x,y])
@@ -367,7 +375,8 @@ class GazeboEnv:
             
             if PARTIAL_VIEW and SCENARIO=='DWA':   # partial view이고 dwa 환경일때
                 if (-5.5 <= x <= -3.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -1.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 1.0):
-                    self.pedsim_agents_list.append([x,y])
+                    #self.pedsim_agents_list.append([x,y])
+                    self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
 
         #print('페드심 리스트: ', self.pedsim_agents_list)
             
@@ -548,7 +557,8 @@ class GazeboEnv:
                     elif SCENARIO=='U':
                         path = planner_U.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
                     elif SCENARIO=='DWA':
-                        path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
+                        #path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
+                        path = planner_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
                     self.path_i_rviz = path
                     break
                 except:
@@ -633,7 +643,7 @@ class GazeboEnv:
                         #print(i, self.path_as_input[i, :])
                         
                     '''
-                    '''
+
                     # 230127 Sampling 2. 패스중 5개를 uniform하게 샘플링
                     #print('오리지널 패스:',path)
                     divdiv = int(len(path) / self.path_as_input_no)   # e.g. 13/5 = 2.6 --int--> 2
@@ -641,8 +651,8 @@ class GazeboEnv:
                         #print(i, divdiv, len(path))
                         #print((i+1)*divdiv)
                         self.path_as_input[i,:] = path[(i+1)*divdiv-1, :]-5.5
+                    
                     '''
-                        
                     # 230130 Sampling 3. 패스중 landmark selection
                     # landmark: 로봇이 이동간 가장 큰 변화를 해야 하는 곳(굴곡이 큰곳)
                     # visibility: 현재 cctv가 보고 있는곳
@@ -661,11 +671,11 @@ class GazeboEnv:
                     if len(top_k_list)<=4:
                         top_k_list.append(top_k_list[-1])
                     #print('넨피:',np.argpartition(top_k_list, -5)[-5:])
-                    order_by_desc = np.argpartition(top_k_list, -5)[-5:]
+                    order_by_desc = np.argpartition(top_k_list, -5)[-5:]   # https://stackoverflow.com/questions/65038206/how-to-get-indices-of-top-k-values-from-a-numpy-array
                     
                     for i, pros in enumerate(order_by_desc):
                         self.path_as_input[i,:] = path[pros,:]-5.5
-                        
+                    '''       
  
                         
                         
@@ -774,7 +784,7 @@ class GazeboEnv:
                 
         
         '''
-        ### DEGUB 용
+        ### DEBUG 용
         x = -4.0
         y = -4.0
         '''
@@ -873,7 +883,8 @@ class GazeboEnv:
                 elif SCENARIO=='U':
                     path = planner_U.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
                 elif SCENARIO=='DWA':
-                    path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                    #path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                    path = planner_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
                 break
             except:
                 path = [[self.goal_x, self.goal_y]]
@@ -961,14 +972,15 @@ class GazeboEnv:
                 for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
                     self.path_as_input[i, :] = path[number, :] - 5.5
                 '''
-                '''
+                
                 # 230127 패스중 5개를 uniform하게 샘플링
                 divdiv = int(len(path) / self.path_as_input_no)   # e.g. 13/5 = 2.6 --int--> 2
                 for i in range(self.path_as_input_no):
                     #print(i, divdiv, len(path))
                     #print((i+1)*divdiv)
                     self.path_as_input[i,:] = path[(i+1)*divdiv-1, :]-5.5       
-                '''    
+                
+                '''
                 # 230130 Sampling 3. 패스중 landmark selection
                 # landmark: 로봇이 이동간 가장 큰 변화를 해야 하는 곳(굴곡이 큰곳)
                 # visibility: 현재 cctv가 보고 있는곳
@@ -984,12 +996,14 @@ class GazeboEnv:
                         #print(i, getAngle(path[i-1],path[i],path[i+1]))
                         top_k_list.append(getAngle(path[i-1],path[i],path[i+1]))
                 #print(top_k_list)
+                if len(top_k_list)<=4:
+                        top_k_list.append(top_k_list[-1])
                 #print('넨피:',np.argpartition(top_k_list, -5)[-5:])
                 order_by_desc = np.argpartition(top_k_list, -5)[-5:]
                 
                 for i, pros in enumerate(order_by_desc):
                     self.path_as_input[i,:] = path[pros,:]-5.5                    
-
+                '''  
             
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
@@ -1520,7 +1534,7 @@ class GazeboEnv:
             R_laser = min_laser - 0.5
         
         # total
-        R_t = R_g + R_c + R_p + R_p + R_w + R_laser
+        R_t = R_g + R_c + R_p + R_w + R_laser
         #print('tot:',R_t, '골:',R_g, '충돌:',R_c, '전진:',R_p, '웨이포인트:',R_w,'(',num_valid_wpt,')', '레이저:',R_laser)
         dx = odom_x - pre_odom_x
         dy = odom_y - pre_odom_y
