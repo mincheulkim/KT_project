@@ -545,8 +545,8 @@ class GazeboEnv:
             if wpt_distance < 1.5:    # 1.5 as ahead distance
                 RECAL_WPT = True
         
-        #if DYNAMIC_GLOBAL and episode_steps%20 ==0:   # 선택 1(fixed rewrind)
-        if DYNAMIC_GLOBAL and RECAL_WPT:               # 아무 웨이포인트나 1.5안에 들어오면 replanning
+        if DYNAMIC_GLOBAL and episode_steps%20 ==0:   # 선택 1(fixed rewrind)
+        #if DYNAMIC_GLOBAL and RECAL_WPT:               # 아무 웨이포인트나 1.5안에 들어오면 replanning
         
             while True:
                 try:
@@ -737,8 +737,8 @@ class GazeboEnv:
         if PATH_AS_INPUT:
             state = np.append(state, self.temp_path_as_input)
             #print('[step]self.temp_path_as_input:',self.temp_path_as_input)
-            
-            
+        
+        
         # 221110 integrity checker
         ## 잘못된 locomotion으로 robot이 하늘 위를 날아다니는 거를 체크해서 
         if self.last_odom.pose.pose.position.z > 0.05:   # 에러날 대 보면 0.12, 0.22, .24 막 이럼
@@ -1390,82 +1390,7 @@ class GazeboEnv:
             return -100.0
         else:
             r3 = lambda x: 1 - x if x < 1 else 0.0
-            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 - reward_w_sum
-        
-    @staticmethod     
-    def get_reward_path_221101(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y):
-        ## 221101 reward design main idea: R_guldering 참조
-        # R = R_g + R_wpt + R_o + R_v
-        R_g = 0.0
-        R_c = 0.0
-        R_p = 0.0
-        R_w = 0.0
-        R_laser = 0.0
-        R_t = 0.0  # total
-        num_valid_wpt = 0
-        # 1. Success
-        if target:
-            R_g = 100.0
-            
-        # 2. Collision
-        if collision:
-            R_c = -100
-            
-        # 3. Progress
-        R_p = pre_dist - dist
-        
-        # 4. Waypoint
-        realibility = 1.0   # 보이면 1.0, 안보이면 0.2
-        '''
-        ##### sparse waypoint reward ######
-        ##### waypoint에 0.35 영역 내부에 있으면(존재하는 중이면) reward
-        for i, path in enumerate(path_as_input):
-            #print(i, path)
-            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
-            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
-            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
-            if (dist_robot_goal > dist_waypoint_goal or i==4) and dist_waypoint_robot < 0.35:   # 로봇보다 골에 가까운 웨이포인트가 남아있을 경우
-                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
-                #reward_w_sum += 0.5 *realibility               # 완화값 * 신뢰도 * 로봇-웨이포인트 거리(로봇이 웨이포인트와 멀리 있음 페널티)
-                reward = 0.35 - dist_waypoint_robot   # 221101
-                R_w += reward * realibility
-        '''
-                
-        ##### dense waypoint reward #####
-        for i, path in enumerate(path_as_input):
-            #print(i, path)
-            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
-            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
-            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
-            if (dist_robot_goal > dist_waypoint_goal or i==4):   # candidate waypoint 선정
-                num_valid_wpt += 1
-                pre_dist_wpt = np.sqrt((path[0] - pre_odom_x)**2 + (path[1] - pre_odom_y)**2)
-                cur_dist_wpt = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-                diff_dist_wpt = pre_dist_wpt - cur_dist_wpt
-                if diff_dist_wpt >= 0:
-                    reward = 2 * diff_dist_wpt
-                else:
-                    reward = diff_dist_wpt
-                
-                reward = reward * realibility   # 221101
-                R_w += reward * realibility
-        R_w = R_w / num_valid_wpt
-        
-        # 5. Laser distance
-        if min_laser < 0.5:
-            R_laser = min_laser - 0.5
-        
-        # total
-        R_t = R_g + R_c + R_p + R_p + R_w + R_laser
-        #print('tot:',R_t, '골:',R_g, '충돌:',R_c, '전진:',R_p, '웨이포인트:',R_w,'(',num_valid_wpt,')', '레이저:',R_laser)
-        dx = odom_x - pre_odom_x
-        dy = odom_y - pre_odom_y
-        
-
-        return R_t
-    
+            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 - reward_w_sum  
     
     @staticmethod     
     def get_reward_path_221114(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y, relliability_score):
@@ -1490,7 +1415,6 @@ class GazeboEnv:
         R_p = pre_dist - dist
         
         # 4. Waypoint
-        realibility = 1.0   # 보이면 1.0, 안보이면 0.2
         '''
         ##### sparse waypoint reward ######
         ##### waypoint에 0.35 영역 내부에 있으면(존재하는 중이면) reward
@@ -1539,81 +1463,6 @@ class GazeboEnv:
         dx = odom_x - pre_odom_x
         dy = odom_y - pre_odom_y
         
-
-        return R_t
-
-
-    @staticmethod     
-    def get_reward_path_230126(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y, relliability_score):
-        ## 221101 reward design main idea: R_guldering 참조
-        # R = R_g + R_wpt + R_o + R_v
-        R_g = 0.0
-        R_c = 0.0
-        R_p = 0.0
-        R_w = 0.0
-        R_laser = 0.0
-        R_t = 0.0  # total
-        num_valid_wpt = 0
-        # 1. Success
-        if target:
-            R_g = 100.0
-            
-        # 2. Collision
-        if collision:
-            R_c = -100
-            
-        # 3. Progress
-        R_p = pre_dist - dist
-        
-        '''
-        ##### sparse waypoint reward ######
-        ##### waypoint에 0.35 영역 내부에 있으면(존재하는 중이면) reward
-        for i, path in enumerate(path_as_input):
-            #print(i, path)
-            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
-            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
-            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
-            if (dist_robot_goal > dist_waypoint_goal or i==4) and dist_waypoint_robot < 0.35:   # 로봇보다 골에 가까운 웨이포인트가 남아있을 경우
-                #print(i,'번째 대상 웨이포인트',path, dist_waypoint_robot)
-                #reward_w_sum += 0.5 *realibility               # 완화값 * 신뢰도 * 로봇-웨이포인트 거리(로봇이 웨이포인트와 멀리 있음 페널티)
-                reward = 0.35 - dist_waypoint_robot   # 221101
-                R_w += reward * realibility
-        '''
-                
-        ##### 221114 dense waypoint reward with reliability #####
-        for i, path in enumerate(path_as_input):
-            #print(i, path)
-            dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
-            dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
-            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
-            if (dist_robot_goal > dist_waypoint_goal or i==4):   # candidate waypoint 선정
-                num_valid_wpt += 1
-                pre_dist_wpt = np.sqrt((path[0] - pre_odom_x)**2 + (path[1] - pre_odom_y)**2)
-                cur_dist_wpt = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-                diff_dist_wpt = pre_dist_wpt - cur_dist_wpt
-                if diff_dist_wpt >= 0:
-                    reward = 2 * diff_dist_wpt
-                else:
-                    reward = diff_dist_wpt
-                
-                reward = reward * relliability_score[i][0]   # 221101
-                
-                R_w += reward * relliability_score[i][0]
-        R_w = R_w / num_valid_wpt
-        
-        # 5. Laser distance
-        if min_laser < 0.5:
-            R_laser = min_laser - 0.5
-        
-        # total
-        R_t = R_g + R_c + R_p + R_p + R_w + R_laser
-        #print('tot:',R_t, '골:',R_g, '충돌:',R_c, '전진:',R_p, '웨이포인트:',R_w,'(',num_valid_wpt,')', '레이저:',R_laser)
-        dx = odom_x - pre_odom_x
-        dy = odom_y - pre_odom_y
-        
-
         return R_t
 
     @staticmethod     

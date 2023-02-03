@@ -13,8 +13,7 @@ from velodyne_env import GazeboEnv
 
 from gym import spaces
 
-#PATH_AS_INPUT = False
-PATH_AS_INPUT = True
+PATH_AS_INPUT = False
 
 def evaluate(network, epoch, eval_episodes=10):
     avg_reward = 0.0
@@ -34,8 +33,7 @@ def evaluate(network, epoch, eval_episodes=10):
             action = network.get_action(np.array(state))
             a_in = [(action[0] + 1) / 2, action[1]]
             #state, reward, done, _ = env.step(a_in)
-            #state, reward, done, target = env.step(a_in)  
-            state, reward, done, target = env.step(a_in, count)    # 230202
+            state, reward, done, target = env.step(a_in)  
             avg_reward += reward
             count += 1
             #if reward < -90:
@@ -148,6 +146,7 @@ class Critic(nn.Module):
             s2 = F.relu(s21 + s22 + self.layer_5_a.bias.data)
             q2 = self.layer_6(s2)
             
+            pass
         else:
             s1 = F.relu(self.layer_1(s))
             self.layer_2_s(s1)
@@ -308,8 +307,8 @@ expl_decay_steps = (
     500000  # Number of steps over which the initial exploration noise will decay over
 )
 expl_min = 0.1  # Exploration noise after the decay in range [0...expl_noise]
-batch_size = 40  # Size of the mini-batch
-#batch_size = 256  # 221007
+#batch_size = 40  # Size of the mini-batch
+batch_size = 256  # 221007
 #batch_size = 200  # 221007
 #discount = 0.99999  # Discount factor to calculate the discounted future reward (should be close to 1)   # TODO 0.99로 바꿔보기
 discount = 0.99   # 221007
@@ -458,8 +457,7 @@ while timestep < max_timesteps:   # < 5000000
 
     # Update action to fall in range [0,1] for linear velocity and [-1,1] for angular velocity
     a_in = [(action[0] + 1) / 2, action[1]]
-    #next_state, reward, done, target = env.step(a_in)
-    next_state, reward, done, target = env.step(a_in, episode_timesteps)   # 230202
+    next_state, reward, done, target = env.step(a_in)
     done_bool = 0 if episode_timesteps + 1 == max_ep else int(done)
     done = 1 if episode_timesteps + 1 == max_ep else int(done)
 
