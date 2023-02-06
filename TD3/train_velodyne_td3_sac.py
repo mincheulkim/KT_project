@@ -109,6 +109,7 @@ action_bound = spaces.Box(low=np.array([0.0, -1.0]), high=np.array([1.0, 1.0]), 
 PATH_AS_INPUT = True
 #PATH_AS_INPUT = False
 if PATH_AS_INPUT:
+    state_dim = environment_dim + robot_dim + 10 # (20 + 4 + 10 (waypoint))
     agent = SAC_PATH(state_dim, action_bound, args) 
 else:
     agent = SAC(state_dim, action_bound, args)

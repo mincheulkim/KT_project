@@ -177,6 +177,7 @@ class QNetwork_PATH(nn.Module):
         '''
         # Q1 architecture
         self.goal1 = nn.Linear(2, hidden_dim)
+        self.robot_s1 = nn.Linear(4, hidden_dim)   # 230206
         self.waypoint1 = nn.Linear(10, hidden_dim)
         self.fea_cv11 = nn.Conv1d(in_channels = 1, out_channels=32, kernel_size=5, stride = 2, padding=1)
         self.fea_cv21 = nn.Conv1d(in_channels=32, out_channels=32, kernel_size=3, stride=2, padding=1)
@@ -189,6 +190,7 @@ class QNetwork_PATH(nn.Module):
 
         # Q2 architecture
         self.goal2 = nn.Linear(2, hidden_dim)
+        self.robot_s2 = nn.Linear(4, hidden_dim)  # 230206
         self.waypoint2 = nn.Linear(10, hidden_dim)
         self.fea_cv12 = nn.Conv1d(in_channels = 1, out_channels=32, kernel_size=5, stride = 2, padding=1)
         self.fea_cv22 = nn.Conv1d(in_channels=32, out_channels=32, kernel_size=3, stride=2, padding=1)
@@ -221,17 +223,21 @@ class QNetwork_PATH(nn.Module):
         x2 = F.relu(self.linear5(x2))
         x2 = self.linear6(x2)
         '''
+        # state: 0~19(20) : lidar, 20~23(robot state as g_x, g_y, v, w), 24~33(10): waypoints
+        
         #1. waypoint
         waypoint = state[:,-10:]    # waypoints  (5 x 2 = 10)
         #2. lidar
         lidar = state[:,:20]    # lidar 20
         lidar = lidar.unsqueeze(1)
         #3. goal
-        goal = state[:, 20:22]  # goal 2
+        #goal = state[:, 20:22]  # goal 2
+        robot_state = state[:, 20:24]  # g_x, g_y, v, w
         
         # Q1
         w1 = F.relu(self.waypoint1(waypoint))
-        g1 = F.relu(self.goal1(goal))
+        #g1 = F.relu(self.goal1(goal))
+        g1 = F.relu(self.robot_s1(robot_state))
         l1 = F.relu(self.fea_cv11(lidar))
         l1 = F.relu(self.fea_cv21(l1))
         l1 = F.relu(self.fea_cv31(l1))
@@ -246,7 +252,8 @@ class QNetwork_PATH(nn.Module):
 
         # Q2
         w2 = F.relu(self.waypoint2(waypoint))
-        g2 = F.relu(self.goal2(goal))
+        #g2 = F.relu(self.goal2(goal))
+        g2 = F.relu(self.robot_s2(robot_state))
         l2 = F.relu(self.fea_cv12(lidar))
         l2 = F.relu(self.fea_cv22(l2))
         l2 = F.relu(self.fea_cv32(l2))
@@ -275,6 +282,8 @@ class GaussianPolicy_PATH(nn.Module):
         '''
         # Goal: FC256
         self.goal = nn.Linear(2, hidden_dim)
+        # Robot state: FC256
+        self.robot_state = nn.Linear(4, hidden_dim)
         
         # Waypoints: FC256
         self.waypoint = nn.Linear(10, hidden_dim)
@@ -324,13 +333,15 @@ class GaussianPolicy_PATH(nn.Module):
 
         #3. goal
         goal = state[:, 20:22]  # goal 2
+        robot_state = state[:, 20:24]
         #print('state:',state)
         #print('l:',lidar)
         #print('waypoint:',waypoint )
         #print('goal:',goal)
         
         w = F.relu(self.waypoint(waypoint))
-        g = F.relu(self.goal(goal))
+        #g = F.relu(self.goal(goal))
+        g = F.relu(self.robot_state(robot_state))
         l = F.relu(self.fea_cv1(lidar))   # batch, channel, feature
         l = F.relu(self.fea_cv2(l))
         l = F.relu(self.fea_cv3(l))
