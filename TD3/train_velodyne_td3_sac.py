@@ -148,6 +148,11 @@ for i_episode in itertools.count(1):
         else:   # 여기 실제로 되는지
             action = agent.select_action(state)  # Sample action from policy
             a_in = action # 230111
+        '''     
+        # 1. DWA 모드
+        action = env.get_action_dwa()
+        a_in = action
+        '''
 
         if len(memory) > args.batch_size:
             # Number of updates per step in environment
@@ -261,10 +266,15 @@ for i_episode in itertools.count(1):
             episode_length = 0
             done = False
             flag = 0
-            while not done:
+            while not done: 
                 action = agent.select_action(state, evaluate=True)
-                #a_in = [(action[0] + 1) / 2, action[1]]  
                 a_in = action # 230111
+                '''
+                # 1. DWA 모드
+                action = env.get_action_dwa()
+                a_in = action
+                '''
+                
                 #next_state, reward, done, _ = env.step(action)
                 #next_state, reward, done, _ = env.step(a_in)
                 next_state, reward, done, target = env.step(a_in, flag)

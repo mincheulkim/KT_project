@@ -12,7 +12,8 @@ import planner_U  # 221117
 import planner_DWA
 import planner_astar # 230131
 from os import path
-   
+
+import dwa_pythonrobotics as dwa_pythonrobotics
 import numpy as np
 import rospy
 import sensor_msgs.point_cloud2 as pc2
@@ -236,6 +237,8 @@ class GazeboEnv:
                 [self.gaps[m][1], self.gaps[m][1] + np.pi / self.environment_dim]
             )
         self.gaps[-1][-1] += 0.03
+        
+        self.dwa_x = np.array([self.set_self_state.pose.position.x, self.set_self_state.pose.position.y, self.set_self_state.pose.orientation.w, 0.0, 0.0])
 
         port = "11311"
         subprocess.Popen(["roscore", "-p", port])
@@ -525,7 +528,9 @@ class GazeboEnv:
             #reward = self.get_reward(target, collision, action, min_laser) # 230205 for test
             #reward = self.get_reward_path_230203_TD3(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
         else:
-            reward = self.get_reward(target, collision, action, min_laser)
+            #reward = self.get_reward(target, collision, action, min_laser)
+            # 230227 pureDRL
+            reward = self.get_reward_path_230206_pureDRL(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
         
         
         #220928 path 생성
@@ -1339,41 +1344,6 @@ class GazeboEnv:
         else:
             r3 = lambda x: 1 - x if x < 1 else 0.0
             return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
-        
-    @staticmethod  # 221005
-    def get_reward_new(target, collision, action, min_laser, delta_distance):
-        '''
-        if target:
-            return 100.0
-        elif collision:
-            return -100.0
-        else:
-            r3 = lambda x: 1 - x if x < 1 else 0.0
-            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
-        '''    
-        ### 0. 리워드 initialize
-        reward_g = delta_distance * 30
-        reward_c = 0
-        reward_w = 0
-        
-        ### 1. 도착했을 때
-        if target:
-            reward_g = 100
-        ### 2. 충돌했을 때
-        if collision:
-            reward_c = -100
-        ### 3. rotation penalty
-        if np.abs(action[1]) > 1.05:
-            reward_w = -0.1 * np.abs(action[1])
-            print('rotation penalty!')
-        ### 4. reminscure reward
-        r3 = lambda x: 1 - x if x < 1 else 0.0
-        reward_r = action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
-            
-        reward = reward_g + reward_c + reward_w + reward_r
-
-        return reward        
-    
     
     @staticmethod     # 221014  waypoint에 가까워 지면 sparse reward
     def get_reward_path(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y):
@@ -1579,6 +1549,26 @@ class GazeboEnv:
         
         return R_t    
 
+    # 230227 get_reward_path_230206_noreliability와 비교군. pure DRL, R_w 없음    
+    @staticmethod     
+    def get_reward_path_230206_pureDRL(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y):
+        ## 221101 reward design main idea: R_guldering 참조
+        R_g = 0.0
+        R_c = 0.0
+        R_p = 0.0
+        R_t = 0.0  # total
+        # 1. Success
+        if target:
+            R_g = 100.0
+        # 2. Collision
+        if collision:
+            R_c = -100
+        # 3. Progress
+        R_p = pre_dist - dist
+        # total
+        R_t = R_g + R_c + R_p
+        return R_t    
+
     @staticmethod     
     def get_reliablity(path_as_input, PARTIAL_VIEW):
         reliablity_scores = []
@@ -1607,13 +1597,83 @@ class GazeboEnv:
                     reliability_score = 1.0   # GT
                 else:
                     reliability_score = 0.2   # Partial view일경우 default로 invisible로 세팅
-
-                    
-                    
-                    
-                    
+   
             #2. 로봇 영역에 노드가 위치할 경우 (TODO)
             
             reliablity_scores.append([reliability_score])
 
         return reliablity_scores
+
+    def get_action_dwa(self, rx = -3.0, ry= -3.0, gx=4.0, gy=4.0):
+        self.odom_x = self.last_odom.pose.pose.position.x   
+        self.odom_y = self.last_odom.pose.pose.position.y 
+        rx = self.odom_x
+        ry = self.odom_y
+        gx = self.goal_x
+        gy = self.goal_y
+        skew_x = gx - rx
+        skew_y = gy - ry
+        
+        quaternion = Quaternion(
+            self.last_odom.pose.pose.orientation.w,
+            self.last_odom.pose.pose.orientation.x,
+            self.last_odom.pose.pose.orientation.y,
+            self.last_odom.pose.pose.orientation.z,
+        )
+        euler = quaternion.to_euler(degrees=False)
+        angle = round(euler[2], 4)
+        (_, _, self.euler) = euler_from_quaternion([self.last_odom.pose.pose.orientation.x, self.last_odom.pose.pose.orientation.y, self.last_odom.pose.pose.orientation.z, self.last_odom.pose.pose.orientation.w])
+      
+        dot = skew_x * 1 + skew_y * 0
+        mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
+        mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
+        beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
+        if skew_y < 0:
+            if skew_x < 0:
+                beta = -beta
+            else:
+                beta = 0 - beta
+        theta = beta - angle
+        if theta > np.pi:
+            theta = np.pi - theta
+            theta = -np.pi - theta
+        if theta < -np.pi:
+            theta = -np.pi - theta
+            theta = np.pi - theta
+
+        temp_gx = gx
+        temp_gy = gy
+        threshold_reach = 1.0
+        
+        #print('sequenti waypoint:',self.seq_graph_path)
+        ## seq_graph_path에서 intermediat goal 설정
+        for i, path in enumerate(self.path_as_init):
+            robot_to_goal = np.sqrt((gx-rx)**2+(gy-ry)**2)
+            wpt_to_goal = np.sqrt((gx-path[0])**2+(gy-path[1])**2)
+            robot_to_wpt = np.sqrt((path[0]-rx)**2+(path[1]-ry)**2)
+            #print('로봇-골 거리:',robot_to_goal, '웨이포인트-골 거리:',wpt_to_goal)
+            #print('현재 :',i,'번째의 패스 :',path)
+            if wpt_to_goal < robot_to_goal and robot_to_wpt>threshold_reach:
+                temp_gx = path[0]
+                temp_gy = path[1]
+                break
+            
+        #print('imediate goal:',temp_gx, temp_gy)
+        ped_list = self.pedsim_agents_list
+        
+        self.dwa_x[0] = rx
+        self.dwa_x[1] = ry
+        self.dwa_x[2] = angle
+        self.dwa_x[3] = self.last_odom.twist.twist.linear.x
+        self.dwa_x[4] = self.last_odom.twist.twist.angular.z
+
+        ### dwa_pythonrobotics
+        ## 1. global path의 waypoints들을 고려해서 이동
+        #uu, xx = dwa_pythonrobotics.main(rx, ry, temp_gx, temp_gy, angle, self.dwa_x, ped_list)   
+        ## 2. fixed global goal만 고려 (naive)
+        uu, xx = dwa_pythonrobotics.main(rx, ry, gx, gy, angle, self.dwa_x, ped_list)     
+        
+        diff_x = gx-rx
+        diff_y = gy-ry
+        to_go_rot = np.arctan2(diff_y, diff_x)
+        return [uu[0], -uu[1]]    
