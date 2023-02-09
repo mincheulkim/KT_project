@@ -27,7 +27,8 @@ seed = 123456  # Random seed number
 max_ep = 500  # maximum number of steps per episode
 #batch_size = 40  # Size of the mini-batch
 #batch_size = 256  # 221007
-batch_size = 512  # 221007
+#batch_size = 512  # 221007
+batch_size = 1024  # 230209
 #discount = 0.99999  # Discount factor to calculate the discounted future reward (should be close to 1)  
 discount = 0.99   # 221007    # discount factor for reward (default: 0.99)
 tau = 0.005  # Soft target update variable (should be close to 0)    # target smoothing coefficient(τ) (default: 0.005)
@@ -92,18 +93,15 @@ writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().str
 # Create the training environment
 environment_dim = 20
 robot_dim = 4
-human_num = 12
 env = GazeboEnv("multi_robot_scenario.launch", environment_dim)
 time.sleep(5)
 torch.manual_seed(seed)
 np.random.seed(seed)
 state_dim = environment_dim + robot_dim  # 24
-#state_dim = environment_dim + robot_dim + human_num
 action_dim = 2
 max_action = 1
 
 # Create the network
-
 action_bound = [[0, -1], [1, 1]] 
 action_bound = spaces.Box(low=np.array([0.0, -1.0]), high=np.array([1.0, 1.0]), dtype=np.float32)
 PATH_AS_INPUT = True
@@ -196,20 +194,14 @@ for i_episode in itertools.count(1):
         # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
         
         mask = 1 if episode_steps == max_ep else float(not done)
-        
         ####done_bool = 0 if episode_timesteps + 1 == max_ep else int(done)
-        
-        
+
         done = 1 if episode_steps >= max_ep else int(done)
-        
-        
         
         ####### 221015 unlimited loop exlude
         ######if episode_steps > 501:
         ######    done = True
          
-        
-
         memory.push(state, action, reward, next_state, mask) # Append transition to memory
 
         state = next_state

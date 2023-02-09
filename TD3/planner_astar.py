@@ -400,7 +400,7 @@ def parse_args(argv):
 def main(r_x, r_y, g_x, g_y, pedsim_agents_list):   # [-4.5 ~ 4.5],
     
     global width, height, obs, conf, ax, mm
-    global RES, STEP_SIZE, ROBOT_RADIUS, CLEARANCE, GOAL_RADIUS, PLOT
+    global RES, ROBOT_RADIUS, CLEARANCE, GOAL_RADIUS, PLOT
     RES = 10  # parts per meter
     
     #start, goal, rpm1, rpm2, clearance, PLOT = parse_args(argv)
@@ -432,12 +432,12 @@ def main(r_x, r_y, g_x, g_y, pedsim_agents_list):   # [-4.5 ~ 4.5],
     GOAL_RADIUS = round(0.25 *RES)
     ROBOT_RADIUS = round(0.2 *RES)
     CLEARANCE = round(clearance *RES)
-    STEP_SIZE = round(1 *RES)
 
     mm = MotionModel(wheel_radius=0.033, wheel_base=0.16, rpm1=rpm1, rpm2=rpm2, delta=0.1, res=RES)
     
     # create exploration space
-    width, height = 10*RES+1, 10*RES+1
+    #width, height = 10*RES+1, 10*RES+1
+    width, height = 11*RES+1, 11*RES+1   # 230208
     Y, X = np.mgrid[0:height, 0:width]
     pts = np.array([X.ravel(), Y.ravel()]).T
 

@@ -47,6 +47,7 @@ PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반)
 
 SCENARIO = 'DWA'    # TD3, warehouse, U, DWA
 
+debug = False
 
 
 # Check if the random goal position is located on an obstacle and do not accept it if it is
@@ -377,7 +378,9 @@ class GazeboEnv:
                     self.pedsim_agents_list.append([x,y])
             
             if PARTIAL_VIEW and SCENARIO=='DWA':   # partial view이고 dwa 환경일때
-                if (-5.5 <= x <= -3.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -1.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 1.0):
+                #if (-5.5 <= x <= -3.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -1.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 1.0):
+                if (-5.5 <= x <= -1.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.0):
+                #if (-5.5 <= x <= -1.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 5.5 and 0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.0):
                     #self.pedsim_agents_list.append([x,y])
                     self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
 
@@ -554,7 +557,8 @@ class GazeboEnv:
         
         #if DYNAMIC_GLOBAL and episode_steps%20 ==0:   # 선택 1(fixed rewrind)
         #if DYNAMIC_GLOBAL and RECAL_WPT:             # 선택 2 아무 웨이포인트나 1.5안에 들어오면 replanning
-        if DYNAMIC_GLOBAL and self.pedsim_agents_list != None:   # 선택 3. CCTV안에 pedsim list 들어오면   # 230206
+        #if DYNAMIC_GLOBAL and self.pedsim_agents_list != None:   # 선택 3. CCTV안에 pedsim list 들어오면   # 230206
+        if DYNAMIC_GLOBAL and self.pedsim_agents_list != None and episode_steps%20 == 0:   # 선택 4. CCTV안에 pedsim list 들어오면 + 너무 자주 리플래닝 되지는 않게  # 230209
         
             while True:
                 try:
@@ -565,15 +569,16 @@ class GazeboEnv:
                     elif SCENARIO=='U':
                         path = planner_U.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
                     elif SCENARIO=='DWA':
-                        #path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
-                        path = planner_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
+                        path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
+                        #path = planner_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
+                        #path = astar_new.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
                     self.path_i_rviz = path
                     break
                 except:
-                    path = [[self.goal_x, self.goal_y]]
+                    path = [[self.goal_x+5.5, self.goal_y+5.5]]   # 230209 5.5 더해줌
                     path = np.asarray(path)   # 221103
                     self.path_i_rviz = path
-                    print('예외발생[step]. path를 global goal로 지정: ', path)
+                    #print('예외발생[step]. path를 global goal로 지정: ', path)
                     break
                 
             # TODO sampling 방법에 대해 고려
@@ -685,10 +690,6 @@ class GazeboEnv:
                         self.path_as_input[i,:] = path[pros,:]-5.5
                     '''       
  
-                        
-                        
-                        
-                    
                 # 만약 크기 같다면: 
                 elif len(path) == self.path_as_input_no:
                     self.path_as_input = path - 5.5
@@ -702,6 +703,7 @@ class GazeboEnv:
         ### m(input1), m(input2) -> [1, 64, 5]
         
         #print('패스 애즈 이닛:',self.path_as_init)        
+        #print('골:',self.goal_x, self.goal_y)
         #print('패스:',self.path_as_input)
         
         self.publish_markers(action)   # RVIZ 상 marker publish
@@ -791,11 +793,11 @@ class GazeboEnv:
                 position_ok = check_pos_DWA(x, y)
                 
         
-        '''
-        ### DEBUG 용
-        x = -4.0
-        y = -4.0
-        '''
+        if debug:
+            ### DEBUG 용
+            x = -4.0
+            y = -4.0
+        
         
             
         object_state.pose.position.x = x
@@ -818,11 +820,10 @@ class GazeboEnv:
         # randomly scatter boxes in the environment
         #self.random_box()   # 220919 dynamic obstacle 추가로 일단 해제
         
-        '''
-        ### DEBUG 용
-        self.goal_x = 4.0
-        self.goal_y = 4.0
-        '''        
+        if debug:
+            ### DEBUG 용
+            self.goal_x = 4.0
+            self.goal_y = 4.0
 
         rospy.wait_for_service("/gazebo/unpause_physics")
         try:
@@ -891,8 +892,10 @@ class GazeboEnv:
                 elif SCENARIO=='U':
                     path = planner_U.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
                 elif SCENARIO=='DWA':
-                    #path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
-                    path = planner_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
+                    path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                    #path = planner_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
+                    #path = astar_new.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
+
                 break
             except:
                 path = [[self.goal_x, self.goal_y]]
@@ -1197,8 +1200,8 @@ class GazeboEnv:
             marker4.scale.x = 0.1
             marker4.scale.y = 0.1
             marker4.scale.z = 0.01
-            marker4.color.a = 0.5
-            marker4.color.r = 0.5
+            marker4.color.a = 0.51
+            marker4.color.r = 0.87
             marker4.color.g = 1.0
             marker4.color.b = 0.0
             marker4.pose.orientation.w = 1.0

@@ -5,6 +5,7 @@
 # Created Date: Saturday 7 May 2022
 # =============================================================================
 # 230126 DWA 환경에서 플래너
+# 230209 Indiv space 추가
 
 # =============================================================================
 # Imports
@@ -173,6 +174,80 @@ def create_rect(cx, cy, ht, wd):
     return np.array([(cx-(wd/2), cy-(ht/2)), (cx-(wd/2), cy+(ht/2)),
                      (cx+(wd/2), cy+(ht/2)), (cx+(wd/2), cy-(ht/2)),
                      (cx-(wd/2), cy-(ht/2))])
+    
+def boundary_dist(velocity, rel_ang, laser_flag, const=0.354163):
+        # Parameters from Rachel Kirby's thesis
+        front_coeff = 1.0
+        #front_coeff = 2.0
+        side_coeff = 2.0 / 3.0
+        rear_coeff = 0.5
+        safety_dist = 0.5
+        velocity_x = velocity[0]
+        velocity_y = velocity[1]
+
+        velocity_magnitude = np.sqrt(velocity_x ** 2 + velocity_y ** 2)
+        variance_front = max(0.5, front_coeff * velocity_magnitude)
+        variance_side = side_coeff * variance_front
+        variance_rear = rear_coeff * variance_front
+
+        rel_ang = rel_ang % (2 * np.pi)
+        flag = int(np.floor(rel_ang / (np.pi / 2)))
+        if flag == 0:
+            prev_variance = variance_front
+            next_variance = variance_side
+        elif flag == 1:
+            prev_variance = variance_rear
+            next_variance = variance_side
+        elif flag == 2:
+            prev_variance = variance_rear
+            next_variance = variance_side
+        else:
+            prev_variance = variance_front
+            next_variance = variance_side
+
+        dist = np.sqrt(const / ((np.cos(rel_ang) ** 2 / (2 * prev_variance)) + (np.sin(rel_ang) ** 2 / (2 * next_variance))))
+        dist = max(safety_dist, dist)
+
+        # Offset pedestrian radius
+        if laser_flag:
+            dist = dist - 0.5 + 1e-9
+
+        return dist
+
+def draw_social_shapes(position, velocity, laser_flag, const=0.35):
+        # This function draws social group shapes
+        # given the positions and velocities of the pedestrians.
+
+        total_increments = 360 # controls the resolution of the blobs
+        #total_increments = 80 # controls the resolution of the blobs  #0228 리포트때 480으로 함
+        quater_increments = total_increments / 4
+        angle_increment = 2 * np.pi / total_increments
+
+        # Draw a personal space for each pedestrian within the group
+        contour_points = []
+        center_x = position[0]
+        center_y = position[1]
+        velocity_x = velocity[0]
+        velocity_y = velocity[1]
+        velocity_angle = np.arctan2(velocity_y, velocity_x)
+
+        # Draw four quater-ovals with the axis determined by front, side and rear "variances"
+        # The overall shape contour does not have discontinuities.
+        for j in range(total_increments):
+
+            rel_ang = angle_increment * j
+            value = boundary_dist(velocity, rel_ang, laser_flag, const)
+            #value *= 1.2  # 0228 리포트때는 1.2배 함
+            addition_angle = velocity_angle + rel_ang
+            x = center_x + np.cos(addition_angle) * value
+            y = center_y + np.sin(addition_angle) * value
+            contour_points.append((x, y))
+            #print('컨투어 포인트:',j,x,y)
+
+        # Get the convex hull of all the personal spaces
+        
+        
+        return contour_points    
 
 def get_obstacle_map(pts, pedsim_agent_list, r_x, r_y):
     # add square
@@ -194,30 +269,28 @@ def get_obstacle_map(pts, pedsim_agent_list, r_x, r_y):
     # wall_15
     obs4 = check_in_poly(pts, RES*create_rect((7.5/2)+map_bias, 2.5+map_bias, 0.2, 3.5).reshape(-1,2))  # height, width
     obs = np.logical_or(obs, obs4)
-    
-
-    # add rectangle 1
-    #obs2 = check_in_poly(pts, RES*create_rect(5, 5, 1.5, 2.5).reshape(-1,2))
-    #obs = np.logical_or(obs, obs2)
-    
-    # add circle 1
-    #center, radius = np.array([2,8])*RES, 1*RES
-    #obs2 = np.linalg.norm(pts-center, axis=1) < radius
-    #obs = np.logical_or(obs, obs2)
-    
+        
     #print('pedsim_list:',pedsim_agent_list)  # DEBUG
     # 230131 사람 추가
-    
     if pedsim_agent_list != None:
         for i, ped in enumerate(pedsim_agent_list):
             x = ped[0] + map_bias
             y = ped[1] + map_bias
-            #center, radius = np.array([int(x),int(y)])*RES, 1*RES
+            
+            '''
+            # Method 1. Fixed human area
             center, radius = np.array([int(x*RES),int(y*RES)]),  1*RES   # RES = 10
-            obs_ped = np.linalg.norm(pts-center, axis=1) < radius
+            obs_ped = np.linalg.norm(pts-center, axis=1) < radius   # len(obs_ped) = 10210
+            '''
+            
+            # Method 2. Social individual space
+            ind_space = draw_social_shapes(ped[:2], ped[2:4], False)   # position, velocity
+            #print(ind_space)
+            obs_ped = check_in_poly(pts, RES*(np.array(ind_space)+map_bias).reshape(-1,2))
+            
+            
             obs = np.logical_or(obs, obs_ped)
     
-
     # create border
     obs2 = np.zeros((height,width), dtype=bool)
     bw = int(0.1 *RES) # border width
