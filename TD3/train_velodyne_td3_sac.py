@@ -91,9 +91,12 @@ writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().str
                                                              args.policy, "autotune" if args.automatic_entropy_tuning else ""))
 
 # Create the training environment
+PATH_AS_INPUT = True  # sac path
+#PATH_AS_INPUT = False  # 폴스 (pure DRL)
+
 environment_dim = 20
 robot_dim = 4
-env = GazeboEnv("multi_robot_scenario.launch", environment_dim)
+env = GazeboEnv("multi_robot_scenario.launch", environment_dim, PATH_AS_INPUT)
 time.sleep(5)
 torch.manual_seed(seed)
 np.random.seed(seed)
@@ -104,8 +107,7 @@ max_action = 1
 # Create the network
 action_bound = [[0, -1], [1, 1]] 
 action_bound = spaces.Box(low=np.array([0.0, -1.0]), high=np.array([1.0, 1.0]), dtype=np.float32)
-PATH_AS_INPUT = True
-#PATH_AS_INPUT = False
+
 if PATH_AS_INPUT:
     state_dim = environment_dim + robot_dim + 10 # (20 + 4 + 10 (waypoint))
     agent = SAC_PATH(state_dim, action_bound, args) 

@@ -40,8 +40,8 @@ TIME_DELTA = 0.1
 
 DYNAMIC_GLOBAL = True  # 221003    # global path replanning과 관련
 
-#PATH_AS_INPUT = False # 221014
-PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
+#PATH_AS_INPUT = False # 221014      # false
+#PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
 
 PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
@@ -199,7 +199,9 @@ def check_pos_DWA(x, y):   # 230126
 class GazeboEnv:
     """Superclass for all Gazebo environments."""
 
-    def __init__(self, launchfile, environment_dim):   # launchfile = "multi_robot_scenario.launch", env_dim = 20
+    def __init__(self, launchfile, environment_dim, path_as_input):   # launchfile = "multi_robot_scenario.launch", env_dim = 20
+        self.sac_path = path_as_input
+        
         self.environment_dim = environment_dim   # 20
         self.odom_x = 0
         self.odom_y = 0
@@ -524,7 +526,8 @@ class GazeboEnv:
         reliability_score = self.get_reliablity(self.path_as_input, PARTIAL_VIEW)
 
         
-        if PATH_AS_INPUT:
+        #if PATH_AS_INPUT:
+        if self.sac_path:
             #reward = self.get_reward_path(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y)
             #reward = self.get_reward_path_221114(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y, reliability_score)
             reward = self.get_reward_path_230206_noreliability(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)  # 230206
@@ -744,7 +747,8 @@ class GazeboEnv:
         self.temp_path_as_input = self.temp_path_as_input.reshape(-1,)
         
         ### 221014
-        if PATH_AS_INPUT:
+        if self.sac_path:
+        #if PATH_AS_INPUT:
             state = np.append(state, self.temp_path_as_input)
             #print('[step]self.temp_path_as_input:',self.temp_path_as_input)
         
@@ -1065,7 +1069,8 @@ class GazeboEnv:
 
         
         # 221014
-        if PATH_AS_INPUT:
+        if self.sac_path:
+        #if PATH_AS_INPUT:
             state = np.append(state, self.temp_path_as_input)
             #print('[reset]self.temp_path_as_input:',self.temp_path_as_input)
             
