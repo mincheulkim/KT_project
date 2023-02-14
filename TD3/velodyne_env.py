@@ -1,3 +1,5 @@
+# 디버그 모드임당
+
 from configparser import Interpolation
 from difflib import diff_bytes
 import math
@@ -11,6 +13,7 @@ import planner_warehouse  # 221102
 import planner_U  # 221117
 import planner_DWA
 import planner_astar # 230131
+import astar.pure_astar  # 230213
 from os import path
 
 import dwa_pythonrobotics as dwa_pythonrobotics
@@ -242,6 +245,8 @@ class GazeboEnv:
         self.gaps[-1][-1] += 0.03
         
         self.dwa_x = np.array([self.set_self_state.pose.position.x, self.set_self_state.pose.position.y, self.set_self_state.pose.orientation.w, 0.0, 0.0])
+        
+        self.a_star = None
 
         port = "11311"
         subprocess.Popen(["roscore", "-p", port])
@@ -381,7 +386,7 @@ class GazeboEnv:
             
             if PARTIAL_VIEW and SCENARIO=='DWA':   # partial view이고 dwa 환경일때
                 #if (-5.5 <= x <= -3.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -1.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 1.0):
-                if (-5.5 <= x <= -1.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.0):
+                if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):
                 #if (-5.5 <= x <= -1.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 5.5 and 0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.0):
                     #self.pedsim_agents_list.append([x,y])
                     self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
@@ -424,6 +429,8 @@ class GazeboEnv:
         
         # Publish the robot action
         vel_cmd = Twist()
+        if debug:
+            action = [0.0, 0.0]
         vel_cmd.linear.x = action[0]
         vel_cmd.angular.z = action[1]
         self.vel_pub.publish(vel_cmd)   # the robot movement is executed by a ROS publisher        
@@ -467,6 +474,8 @@ class GazeboEnv:
         # Calculate robot heading from odometry data
         self.odom_x = self.last_odom.pose.pose.position.x   
         self.odom_y = self.last_odom.pose.pose.position.y 
+        self.odom_vx = self.last_odom.twist.twist.linear.x
+        self.odom_vw = self.last_odom.twist.twist.angular.z
         quaternion = Quaternion(
             self.last_odom.pose.pose.orientation.w,
             self.last_odom.pose.pose.orientation.x,
@@ -524,13 +533,15 @@ class GazeboEnv:
         # method: partial observation area에 또는 robot visible area에 위치하면 reliability = 1.0, 아니면 0.2
         # output: realibility
         reliability_score = self.get_reliablity(self.path_as_input, PARTIAL_VIEW)
+        #print('웨이포인트:',self.path_as_input)
+        #print('리얼리비티:',reliability_score)
 
         
         #if PATH_AS_INPUT:
         if self.sac_path:
             #reward = self.get_reward_path(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y)
-            #reward = self.get_reward_path_221114(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y, reliability_score)
-            reward = self.get_reward_path_230206_noreliability(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)  # 230206
+            reward = self.get_reward_path_230214_realibility(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y, reliability_score)
+            #reward = self.get_reward_path_230206_noreliability(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)  # 230206
             #reward = self.get_reward(target, collision, action, min_laser) # 230205 for test
             #reward = self.get_reward_path_230203_TD3(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
         else:
@@ -558,10 +569,10 @@ class GazeboEnv:
             if wpt_distance < 1.5:    # 1.5 as ahead distance
                 RECAL_WPT = True
         
-        #if DYNAMIC_GLOBAL and episode_steps%20 ==0:   # 선택 1(fixed rewrind)
+        if DYNAMIC_GLOBAL and episode_steps%20 ==0:   # 선택 1(fixed rewrind)
         #if DYNAMIC_GLOBAL and RECAL_WPT:             # 선택 2 아무 웨이포인트나 1.5안에 들어오면 replanning
         #if DYNAMIC_GLOBAL and self.pedsim_agents_list != None:   # 선택 3. CCTV안에 pedsim list 들어오면   # 230206
-        if DYNAMIC_GLOBAL and self.pedsim_agents_list != None and episode_steps%20 == 0:   # 선택 4. CCTV안에 pedsim list 들어오면 + 너무 자주 리플래닝 되지는 않게  # 230209
+        #if DYNAMIC_GLOBAL and self.pedsim_agents_list != None and episode_steps%20 == 0:   # 선택 4. CCTV안에 pedsim list 들어오면 + 너무 자주 리플래닝 되지는 않게  # 230209
         
             while True:
                 try:
@@ -572,9 +583,38 @@ class GazeboEnv:
                     elif SCENARIO=='U':
                         path = planner_U.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
                     elif SCENARIO=='DWA':
-                        path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
+                        #path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)  
                         #path = planner_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
-                        #path = astar_new.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
+                        
+                        #############################
+                        #print('로봇 오돔:',self.odom_vx, self.odom_vw)
+                        map_bias = 5.5
+                        resolution = 0.1
+                        grid_size = 1.0  # [m]
+                        robot_radius = 5.0  # [m]
+                        sx = int((self.odom_x+map_bias)/resolution)
+                        sy = int((self.odom_y+map_bias)/resolution)
+                        gx = int((self.goal_x+map_bias)/resolution)
+                        gy = int((self.goal_y+map_bias)/resolution)
+                        
+                        self.pause()
+                        rx, ry = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                        self.unpause()
+                        
+                        final_path = []
+                        for path in zip (rx, ry):
+                            final_path.append([path[0], path[1]])
+                        #final_path.reverse()
+                        #print(final_path)
+                        final_path = np.array(final_path)
+                        final_path = final_path / 10
+                        path = final_path
+                        
+                        
+                        
+                        
+                        
+                        #path = astar.pure_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
                     self.path_i_rviz = path
                     break
                 except:
@@ -583,7 +623,10 @@ class GazeboEnv:
                     self.path_i_rviz = path
                     #print('예외발생[step]. path를 global goal로 지정: ', path)
                     break
-                
+            #print('스탭때 패스:',path)
+            #print('path as rviz:',self.path_i_rviz)
+            
+            rx, ry = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
             # TODO sampling 방법에 대해 고려
             #############################    
             ############# 221010 고정된 5 사이즈의 path output    self.path_as_input
@@ -896,9 +939,63 @@ class GazeboEnv:
                 elif SCENARIO=='U':
                     path = planner_U.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
                 elif SCENARIO=='DWA':
-                    path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                    #path = planner_DWA.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
                     #path = planner_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
-                    #path = astar_new.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
+                    
+                    ######
+                    map_bias = 5.5
+                    resolution = 0.1
+                    grid_size = 1.0  # [m]
+                    robot_radius = 5.0  # [m]
+                    sx = int((self.odom_x+map_bias)/resolution)
+                    sy = int((self.odom_y+map_bias)/resolution)
+                    gx = int((self.goal_x+map_bias)/resolution)
+                    gy = int((self.goal_y+map_bias)/resolution)
+                    
+                    ox, oy = [], []
+                    for i in range(0, 110):
+                        ox.append(i)
+                        oy.append(0)
+                    for i in range(0, 110):
+                        ox.append(110)
+                        oy.append(i)
+                    for i in range(0, 110):
+                        ox.append(i)
+                        oy.append(110)
+                    for i in range(0, 110):
+                        ox.append(0)
+                        oy.append(i)
+                        
+                    for i in range(20, 40):
+                        for j in range(45, 80):
+                            ox.append(i)
+                            oy.append(j)
+                    for i in range(55, 75):
+                        for j in range(30, 55):
+                            ox.append(i)
+                            oy.append(j)
+                    for i in range(95, 110):
+                        for j in range(0, 55):
+                            ox.append(i)
+                            oy.append(j)
+                            
+                    for i in range(75, 110):
+                        ox.append(i)
+                        oy.append(80)
+                    
+                    self.a_star = astar.pure_astar.AStarPlanner(ox, oy, grid_size, robot_radius)
+                    rx, ry = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                    
+                    final_path = []
+                    for path in zip (rx, ry):
+                        final_path.append([path[0], path[1]])
+                    #final_path.reverse()
+                    #print(final_path)
+                    final_path = np.array(final_path)
+                    final_path = final_path / 10
+                    path = final_path
+                    
+                    #path = astar.pure_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
 
                 break
             except:
@@ -1291,41 +1388,6 @@ class GazeboEnv:
         
         cv2.imshow('Harris', rooming2)
         cv2.waitKey(1)
-        
-    # 220928
-    def get_global_action(self):
-
-        self.odom_x = self.last_odom.pose.pose.position.x   
-        self.odom_y = self.last_odom.pose.pose.position.y  
-        quaternion = Quaternion(
-            self.last_odom.pose.pose.orientation.w,
-            self.last_odom.pose.pose.orientation.x,
-            self.last_odom.pose.pose.orientation.y,
-            self.last_odom.pose.pose.orientation.z,
-        )
-        euler = quaternion.to_euler(degrees=False)
-        angle = round(euler[2], 4)
-        (_, _, self.euler) = euler_from_quaternion([self.last_odom.pose.pose.orientation.x, self.last_odom.pose.pose.orientation.y, self.last_odom.pose.pose.orientation.z, self.last_odom.pose.pose.orientation.w])  
-        
-        targetPose = np.array([self.goal_x-self.odom_x, self.goal_y-self.odom_y])
-        
-        inc_x = self.goal_x - self.odom_x
-        inc_y = self.goal_y - self.odom_y
-        
-        angles = np.arctan2(inc_y,inc_x)
-        diff = angles - self.euler
-        if diff <= -np.pi:
-            diff = np.pi + (angles - np.pi) - self.euler
-        elif diff > np.pi:
-            diff = -np.pi - (np.pi + angles) - self.euler
-        
-        diff -= np.pi
-            
-        length = np.sqrt(inc_y**2+ inc_x **2)
-        linear_x = length
-        angular_z = diff
-
-        return linear_x, angular_z
     
     # 221019 로봇 egocentric local goal
     def get_local_goal(self, odom_x, odom_y, global_x, global_y, theta):
@@ -1414,7 +1476,7 @@ class GazeboEnv:
         return R_t
     
     @staticmethod     
-    def get_reward_path_221114(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y, relliability_score):
+    def get_reward_path_230214_realibility(target, collision, action, min_laser, odom_x, odom_y, path_as_input, goal_x, goal_y, pre_dist, dist, pre_odom_x, pre_odom_y, relliability_score):
         ## 221101 reward design main idea: R_guldering 참조
         # R = R_g + R_wpt + R_o + R_v
         R_g = 0.0
@@ -1423,7 +1485,6 @@ class GazeboEnv:
         R_w = 0.0
         R_laser = 0.0
         R_t = 0.0  # total
-        num_valid_wpt = 0
         # 1. Success
         if target:
             R_g = 100.0
@@ -1452,13 +1513,11 @@ class GazeboEnv:
                 R_w += reward * realibility
         '''
                 
-        ##### 221114 dense waypoint reward with reliability #####
+        ##### 230214 dense waypoint reward with reliability #####
+        num_valid_wpt = 0
         for i, path in enumerate(path_as_input):
-            #print(i, path)
             dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
             dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
-            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
-            #print(i, dist_robot_goal, dist_waypoint_goal, dist_robot_goal>dist_waypoint_goal, dist_waypoint_robot, dist_waypoint_robot<0.35)
             if (dist_robot_goal > dist_waypoint_goal or i==4):   # candidate waypoint 선정
                 num_valid_wpt += 1
                 pre_dist_wpt = np.sqrt((path[0] - pre_odom_x)**2 + (path[1] - pre_odom_y)**2)
@@ -1471,19 +1530,14 @@ class GazeboEnv:
                 
                 reward = reward * relliability_score[i][0]   # 221101
                 
-                R_w += reward * relliability_score[i][0]
-        R_w = R_w / num_valid_wpt
-        
-        # 5. Laser distance
-        if min_laser < 0.5:
-            R_laser = min_laser - 0.5
+                R_w += reward
+                #print(i,'번째 웨이포인트의 신뢰도:',relliability_score[i][0],'리워드:',reward)
+        R_w = R_w / (num_valid_wpt + 0.000000000001)
         
         # total
-        R_t = R_g + R_c + R_p + R_w + R_laser
+        R_t = R_g + R_c + R_p + R_w
         #print('tot:',R_t, '골:',R_g, '충돌:',R_c, '전진:',R_p, '웨이포인트:',R_w,'(',num_valid_wpt,')', '레이저:',R_laser)
-        dx = odom_x - pre_odom_x
-        dy = odom_y - pre_odom_y
-        
+        #print('R_nav:',R_g+R_c+R_p, '  R_wpt:',R_w)
         return R_t    
     
     @staticmethod     
@@ -1496,7 +1550,6 @@ class GazeboEnv:
         R_w = 0.0
         R_laser = 0.0
         R_t = 0.0  # total
-        num_valid_wpt = 0
         # 1. Success
         if target:
             R_g = 100.0
@@ -1525,12 +1578,11 @@ class GazeboEnv:
                 R_w += reward * realibility
         '''
                 
-        ##### 221114 dense waypoint reward with reliability #####
+        ##### 221114 dense waypoint reward without reliability #####
         num_valid_wpt = 0
         for i, path in enumerate(path_as_input):
             dist_waypoint_goal = np.sqrt((goal_x - path[0])**2+(goal_y-path[1])**2)
             dist_robot_goal = np.sqrt((goal_x - odom_x)**2+(goal_y - odom_y)**2)
-            dist_waypoint_robot = np.sqrt((path[0] - odom_x)**2 + (path[1] - odom_y)**2)
             if (dist_robot_goal > dist_waypoint_goal or i==4):   # candidate waypoint 선정
                 num_valid_wpt += 1
                 pre_dist_wpt = np.sqrt((path[0] - pre_odom_x)**2 + (path[1] - pre_odom_y)**2)
@@ -1544,16 +1596,9 @@ class GazeboEnv:
                 R_w += reward
         R_w = R_w / (num_valid_wpt + 0.000000000001)
         
-        # 5. Laser distance
-        if min_laser < 0.5:
-            R_laser = min_laser - 0.5
-        
         # total
-        #R_t = R_g + R_c + R_p + R_w + R_laser
         R_t = R_g + R_c + R_p + R_w
         #print('tot:',R_t, '골:',R_g, '충돌:',R_c, '전진:',R_p, '웨이포인트:',R_w,'(',num_valid_wpt,')', '레이저:',R_laser)
-        dx = odom_x - pre_odom_x
-        dy = odom_y - pre_odom_y
         
         return R_t    
 
@@ -1601,13 +1646,14 @@ class GazeboEnv:
                 if -1 < path[0] < 1 and 3 < path[1] < 5:
                     reliability_score = 1.0
             if PARTIAL_VIEW and SCENARIO=='DWA':
-                if (-5.5 <= path[0] <= -3.5 and -5.5 <= path[1] <= -1) or (-1.5 <= path[0] <= 0.0 and -1.0 <= path[1] <= 2.5) or (2.0 <= path[0] <= 4.0 and -5.5 <= path[1] <= 1.0):
+                #if (-5.5 <= path[0] <= -3.5 and -5.5 <= path[1] <= -1) or (-1.5 <= path[0] <= 0.0 and -1.0 <= path[1] <= 2.5) or (2.0 <= path[0] <= 4.0 and -5.5 <= path[1] <= 1.0):
+                if (-5.5 <= path[0] <= 0.0 and -5.5 <= path[1] <= -1) or (-1.5 <= path[0] <= 0.0 and -5.5 <= path[1] <= 2.5) or (2.0 <= path[0] <= 4.0 and -5.5 <= path[1] <= 2.5):
                     reliability_score = 1.0   # GT
                 else:
                     reliability_score = 0.2   # Partial view일경우 default로 invisible로 세팅
    
-            #2. 로봇 영역에 노드가 위치할 경우 (TODO)
-            
+            #2. 로봇 영역에 노드가 위치할 경우 (TODO)   
+                     
             reliablity_scores.append([reliability_score])
 
         return reliablity_scores
