@@ -50,7 +50,7 @@ PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반)
 
 SCENARIO = 'DWA'    # TD3, warehouse, U, DWA
 
-debug = False
+debug = False    # evaluate단에서 활성화할 시 시점과 종점을 대칭으로 생성해줌
 
 
 # Check if the random goal position is located on an obstacle and do not accept it if it is
@@ -199,6 +199,38 @@ def check_pos_DWA(x, y):   # 230126
     return goal_ok
 
 
+def check_pos_DWA_evaluate(x, y):   # 230126
+    # 221219 buffer 추가
+    #buffer_length = 0.25
+    buffer_length = 0.5
+    goal_ok = True
+    #print('야')
+    
+    # 밖으로 나가는 것도 고려해야 함
+    if x <= -5.5+buffer_length or x>= 5.5-buffer_length or y <= -5.5+buffer_length or y> 5.5-buffer_length:
+        goal_ok = False
+
+    if -3.5-buffer_length <= x <= -1.5+buffer_length and -1-buffer_length <= y <= 2.5+buffer_length:
+        goal_ok = False
+
+    if 0-buffer_length <= x <= 2+buffer_length and -2.5-buffer_length <= y <= 0+buffer_length:
+        goal_ok = False
+
+    if 2-buffer_length <= x <= 5.5 and 2.5-buffer_length <= y <= 2.5 + buffer_length:
+        goal_ok = False
+
+    if 4-buffer_length <= x <= 5.5+buffer_length and -5.5-buffer_length <= y <= 0+buffer_length:
+        goal_ok = False
+        
+        
+    #### 230222 Evaluate 용 #####
+    #### eleverter scene에서 시점, 종점이 사람 지역에 안생기도록
+    if -3 <= x <= 3 and -3 <= y <= 3:
+        goal_ok = False
+        
+    return goal_ok
+
+
 class GazeboEnv:
     """Superclass for all Gazebo environments."""
 
@@ -221,7 +253,7 @@ class GazeboEnv:
 
         self.upper = 5.0
         self.lower = -5.0
-        self.velodyne_data = np.ones(self.environment_dim) * 10    
+        self.velodyne_data = np.ones(self.environment_dim) * 10
         self.last_odom = None
         self.pedsim_agents_list = None
         self.human_num = 12
@@ -279,6 +311,7 @@ class GazeboEnv:
         self.publisher4 = rospy.Publisher("waypoints", MarkerArray, queue_size=1)
         self.publisher5 = rospy.Publisher("optimal_goal", MarkerArray, queue_size=1)
         self.publisher6 = rospy.Publisher("path_as_init", MarkerArray, queue_size=1)   # 221020
+        self.publisher7 = rospy.Publisher("flow_map", MarkerArray, queue_size=1)   # 230221
         self.velodyne = rospy.Subscriber(
             "/velodyne_points", PointCloud2, self.velodyne_callback, queue_size=1
         )
@@ -300,6 +333,7 @@ class GazeboEnv:
         self.path_as_input = []    # 221010
         self.path_as_input_no = 5  # 221010 5개 샘플
         self.path_as_init = None
+        self.flow_map = None
         
 
     # Read velodyne pointcloud and turn it into distance data, then select the minimum value for each angle
@@ -369,27 +403,35 @@ class GazeboEnv:
             
             # 221114 partial view 상황 가정
             if PARTIAL_VIEW != True:   # fully observable일때
-                self.pedsim_agents_list.append([x,y])
+                self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
                 #print('액터:',actor_id,'model_pose:',x, y)
                 
             if PARTIAL_VIEW and SCENARIO=='TD3':   # partial view이고 TD3 환경일때
                 if -5 < y < 0:    # 아래쪽 다 보이는 경우
-                    self.pedsim_agents_list.append([x,y])
+                    self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
                 
             if PARTIAL_VIEW and SCENARIO=='warehouse':  # partial view이고 warehouse 환경일때
                 if -10 < y < 10:   # 아래쪽 다 보이는 경우
-                    self.pedsim_agents_list.append([x,y])
+                    self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
                     
             if PARTIAL_VIEW and SCENARIO=='U':
                 if -1 < x < 1 and 3 < y < 5:
-                    self.pedsim_agents_list.append([x,y])
+                    self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
             
             if PARTIAL_VIEW and SCENARIO=='DWA':   # partial view이고 dwa 환경일때
-                #if (-5.5 <= x <= -3.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -1.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 1.0):
-                if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):
-                #if (-5.5 <= x <= -1.5 and -5.5 <= y <= -1) or (-1.5 <= x <= 5.5 and 0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.0):
-                    #self.pedsim_agents_list.append([x,y])
+                if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 3개 alive(ORIGINAL)
+                    
+                # Ablation study
+                ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5):      # CCTV 2개 (1,2))
+                ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 2개 (1,3))
+                ####if (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 2개 (2,3))
+                ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1):      # CCTV 1개 alive (1번)
+                ####if (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5):     # CCTV 1개 alive (2번)
+                ####if (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 1개 alive (3번)
+                
                     self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
+                    
+                # unlimited case는 if 삭제하고 아래줄 한칸 앞으로 땡기면 됨
 
         #print('페드심 리스트: ', self.pedsim_agents_list)
             
@@ -429,8 +471,6 @@ class GazeboEnv:
         
         # Publish the robot action
         vel_cmd = Twist()
-        if debug:
-            action = [0.0, 0.0]
         vel_cmd.linear.x = action[0]
         vel_cmd.angular.z = action[1]
         self.vel_pub.publish(vel_cmd)   # the robot movement is executed by a ROS publisher        
@@ -598,7 +638,8 @@ class GazeboEnv:
                         gy = int((self.goal_y+map_bias)/resolution)
                         
                         self.pause()
-                        rx, ry = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                        rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                        self.flow_map = flow_map   # 230221
                         self.unpause()
                         
                         final_path = []
@@ -626,7 +667,7 @@ class GazeboEnv:
             #print('스탭때 패스:',path)
             #print('path as rviz:',self.path_i_rviz)
             
-            rx, ry = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+            #rx, ry = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)   
             # TODO sampling 방법에 대해 고려
             #############################    
             ############# 221010 고정된 5 사이즈의 path output    self.path_as_input
@@ -814,10 +855,6 @@ class GazeboEnv:
         except rospy.ServiceException as e:
             print("/gazebo/reset_simulation service call failed")
 
-        angle = np.random.uniform(-np.pi, np.pi)
-        quaternion = Quaternion.from_euler(0.0, 0.0, angle)
-        object_state = self.set_self_state
-
         x = 0
         y = 0
         position_ok = False
@@ -841,11 +878,45 @@ class GazeboEnv:
                 
         
         if debug:
+            position_ok = False
+            
+            while not position_ok:
+                x = np.random.uniform(-5.5, 5.5)
+                y = np.random.uniform(-5.5, 5.5)
+                position_ok = check_pos_DWA_evaluate(x, y)
+                
             ### DEBUG 용
-            x = -4.0
-            y = -4.0
+            ###x = -4.5
+            ###y = 4.5
+                
         
+                
+                
+        # set a random goal in empty space in environment
+        self.change_goal()    # short-term 
+        # randomly scatter boxes in the environment
+        #self.random_box()   # 220919 dynamic obstacle 추가로 일단 해제
         
+        if debug:
+            goal_ok = False
+            
+            while not goal_ok:
+                self.goal_x = -x + random.uniform(-1.5, 1.5)  
+                self.goal_y = -y + random.uniform(-1.5, 1.5) # [-5, 5] -> [-10, 10]
+                goal_ok = check_pos_DWA_evaluate(self.goal_x, self.goal_y)
+                #print(self.goal_x, self.goal_y, goal_ok)
+                
+            ### DEBUG 용
+            ###self.goal_x = 3.0
+            ###self.goal_y = -4.0
+                
+                
+                
+        #angle = np.random.uniform(-np.pi, np.pi)
+        angle = np.arctan2(self.goal_y - y, self.goal_x - x)
+        quaternion = Quaternion.from_euler(0.0, 0.0, angle)
+        object_state = self.set_self_state
+            
             
         object_state.pose.position.x = x
         object_state.pose.position.y = y
@@ -862,15 +933,8 @@ class GazeboEnv:
         self.odom_y = object_state.pose.position.y
         (_, _, self.euler) = euler_from_quaternion([object_state.pose.orientation.x, object_state.pose.orientation.y, object_state.pose.orientation.z, object_state.pose.orientation.w])
 
-        # set a random goal in empty space in environment
-        self.change_goal()    # short-term 
-        # randomly scatter boxes in the environment
-        #self.random_box()   # 220919 dynamic obstacle 추가로 일단 해제
-        
-        if debug:
-            ### DEBUG 용
-            self.goal_x = 4.0
-            self.goal_y = 4.0
+
+            
 
         rospy.wait_for_service("/gazebo/unpause_physics")
         try:
@@ -984,7 +1048,8 @@ class GazeboEnv:
                         oy.append(80)
                     
                     self.a_star = astar.pure_astar.AStarPlanner(ox, oy, grid_size, robot_radius)
-                    rx, ry = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                    rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                    self.flow_map = flow_map  # 230221
                     
                     final_path = []
                     for path in zip (rx, ry):
@@ -1373,6 +1438,53 @@ class GazeboEnv:
             markerArray6.markers.append(marker6)
 
         self.publisher6.publish(markerArray6)
+        
+        
+        '''
+        # flow_map from pure_astar visualize
+        markerArray7 = MarkerArray()
+        if self.flow_map is None:
+            pass
+        else:
+            #print('self.flow_map:',self.flow_map)
+            #print(self.flow_map.shape)
+            marker_id = 0
+            for i in range(self.flow_map.shape[0]):
+                for j in range(self.flow_map.shape[1]):
+                    marker7 = Marker()
+                    marker7.id = marker_id #(i*10)+j
+                    #print(marker7.id)
+                    marker7.header.frame_id = "odom"
+                    marker7.type = marker7.CYLINDER
+                    marker7.action = marker7.ADD
+                    marker7.scale.x = 0.1
+                    marker7.scale.y = 0.1
+                    marker7.scale.z = 0.01
+                    marker7.color.a = 0.51
+                    marker7.color.r = (self.flow_map[i][j] + 99)/198
+                    marker7.color.g = 0.8
+                    marker7.color.b = 0.7
+                    marker7.pose.orientation.w = 1.0
+                    if SCENARIO=='warehouse':
+                        marker7.pose.position.x = i - 10
+                        marker7.pose.position.y = j - 10 
+                    elif SCENARIO=='TD3':
+                        marker7.pose.position.x = i - 5.5
+                        marker7.pose.position.y = j - 5.5
+                    elif SCENARIO=='U':
+                        marker7.pose.position.x = i - 5.5
+                        marker7.pose.position.y = j - 5.5
+                    elif SCENARIO=='DWA':
+                        marker7.pose.position.x = i/10 - 5.5
+                        marker7.pose.position.y = j/10 - 5.5
+                    #print([i,j],'의:',[marker7.pose.position.x,marker7.pose.position.y],marker7.pose.position.z)
+                    marker7.pose.position.z = (self.flow_map[i][j] + 99)/198
+
+                    markerArray7.markers.append(marker7)
+                    marker_id += 1
+
+        self.publisher7.publish(markerArray7)
+        '''
     
     # 220920    
     def harris_corder_detector(self, rgb_cv_cctv1):
@@ -1713,7 +1825,14 @@ class GazeboEnv:
                 break
             
         #print('imediate goal:',temp_gx, temp_gy)
-        ped_list = self.pedsim_agents_list
+        
+        ped_list = []
+        
+        if self.pedsim_agents_list is not None:
+            for ped in self.pedsim_agents_list:
+                ped_list.append([ped[0],ped[1]]) 
+            
+        #ped_list = self.pedsim_agents_list
         
         self.dwa_x[0] = rx
         self.dwa_x[1] = ry
@@ -1725,6 +1844,7 @@ class GazeboEnv:
         ## 1. global path의 waypoints들을 고려해서 이동
         #uu, xx = dwa_pythonrobotics.main(rx, ry, temp_gx, temp_gy, angle, self.dwa_x, ped_list)   
         ## 2. fixed global goal만 고려 (naive)
+        #print('페드 리스트:',ped_list[:,:2])
         uu, xx = dwa_pythonrobotics.main(rx, ry, gx, gy, angle, self.dwa_x, ped_list)     
         
         diff_x = gx-rx

@@ -66,7 +66,7 @@ class AStarPlanner:
             ry: y position list of the final path
         """
         #pedsim_list = []
-        #self.flow_map = None
+        self.flow_map = None
         self.calc_flow_map(r_linear, r_angular, skew_x, skew_y, pedsim_list)
         #print(r_linear, r_angular)
         
@@ -138,7 +138,7 @@ class AStarPlanner:
 
         rx, ry = self.calc_final_path(goal_node, closed_set)
 
-        return rx, ry
+        return rx, ry, self.flow_map
 
     def calc_final_path(self, goal_node, closed_set):
         # generate final course
@@ -160,7 +160,7 @@ class AStarPlanner:
         return d
     
     @staticmethod
-    def motion_flow(n1, n2, flow_map):
+    def motion_flow(n1, n2, flow_map):   # n1=goal node, n2 = openset node
         w = 1.0  # weight of heuristic
         d = w * math.hypot(n1.x - n2.x, n1.y - n2.y)
         #print('flow g.x,g.y:',n1.x, n1.y)
@@ -314,7 +314,7 @@ class AStarPlanner:
                 '''
                 # 3. cosim 값을 곱하기
                 #ori[imgp2 == 1] = 99   # 여기임!
-                ori[imgp2 == 1] = -cos_sim_ped * 99   # 여기임!  (유사도 1.0(동일방향:) -10보너스, 유사도 0.0(90도): 0(변화x), 유사도 -1(역방향) = 10페널티)
+                ori[imgp2 == 1] = (1-cos_sim_ped)/2 * 99   # 여기임!  (유사도 1.0(동일방향:) -10보너스, 유사도 0.0(90도): 0(변화x), 유사도 -1(역방향) = 10페널티)
                 
                 ori[imgp2 == 0] = 0   # 일반(uncertain)
                 

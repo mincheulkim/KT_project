@@ -47,7 +47,7 @@
             <range>
               <min>0.08</min>
               <max>10</max>
-              <!--max>4.0</max--><!--220927-->
+              <!--max>8.0</max--><!--220927-->
               <resolution>0.01</resolution>
             </range>
           </ray>

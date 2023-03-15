@@ -35,7 +35,6 @@ tau = 0.005  # Soft target update variable (should be close to 0)    # target sm
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "Ours"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
-load_model = False  # Weather to load a stored model   
 random_near_obstacle = False  # To take random actions near obstacles or not
 save_interval = 200
 
@@ -91,8 +90,14 @@ writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().str
                                                              args.policy, "autotune" if args.automatic_entropy_tuning else ""))
 
 # Create the training environment
+#### 파라미터 ####
+# 1. 모델 불러오기(evaluate용 또는 이어서 학습하기)
+load_model = False  # Weather to load a stored model   
+# 2. SAC 또는 SAC_PATH
 PATH_AS_INPUT = True  # sac path
-#PATH_AS_INPUT = False  # 폴스 (pure DRL)
+#PATH_AS_INPUT = False  # 폴스 (pure DRL) local 230214
+# 3. evaluate할 건지
+evaluate = False
 
 environment_dim = 20
 robot_dim = 4
@@ -113,13 +118,14 @@ if PATH_AS_INPUT:
     agent = SAC_PATH(state_dim, action_bound, args) 
 else:
     agent = SAC(state_dim, action_bound, args)
+print('agent=:',agent)
 
 
 # Create a replay buffer
 memory = ReplayMemory(args.replay_size, args.seed)
 
 ckpt_path = "checkpoints/sac_checkpoint_Ours best reward_0"
-evaluate = False
+
 if load_model:
         agent.load_checkpoint(ckpt_path, evaluate)
         print(ckpt_path, '를 잘 불러왔다. Evaluate 모드: ',evaluate)
@@ -249,7 +255,8 @@ for i_episode in itertools.count(1):
         timeout_i = 0
         #episodes = 10
         if evaluate:
-            episodes = 100  # for evaluate
+            #episodes = 100  # for evaluate
+            episodes = 200  # 230224
         else:
             episodes = 10   # for training
         print('Validating... Evaluate:',evaluate)
