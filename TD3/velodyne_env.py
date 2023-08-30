@@ -44,7 +44,7 @@ TIME_DELTA = 0.1
 DYNAMIC_GLOBAL = True  # 221003    # global path replanning과 관련
 
 #PATH_AS_INPUT = False # 221014      # false
-#PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
+PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
 
 PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
@@ -256,6 +256,7 @@ class GazeboEnv:
         self.velodyne_data = np.ones(self.environment_dim) * 10
         self.last_odom = None
         self.pedsim_agents_list = None
+        self.pedsim_agents_list_oracle = None
         self.human_num = 12
 
         self.set_self_state = ModelState()
@@ -388,6 +389,7 @@ class GazeboEnv:
     
     def actor_poses_callback(self, actors):
         self.pedsim_agents_list = []
+        self.pedsim_agents_list_oracle = []
         for actor in actors.agent_states:
             actor_id = str( actor.id )
             actor_pose = actor.pose
@@ -399,6 +401,8 @@ class GazeboEnv:
             vx = actor_twist.linear.x
             vy = actor_twist.linear.y
             #print(actor_id, vx, vy)
+            
+            self.pedsim_agents_list_oracle.append([x,y, vx, vy]) # 230828 for SD metric
             
             
             # 221114 partial view 상황 가정
@@ -419,13 +423,13 @@ class GazeboEnv:
                     self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
             
             if PARTIAL_VIEW and SCENARIO=='DWA':   # partial view이고 dwa 환경일때
-                if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 3개 alive(ORIGINAL)
+                ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 3개 alive(ORIGINAL)
                     
                 # Ablation study
                 ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5):      # CCTV 2개 (1,2))
                 ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 2개 (1,3))
                 ####if (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 2개 (2,3))
-                ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1):      # CCTV 1개 alive (1번)
+                if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1):      # CCTV 1개 alive (1번)
                 ####if (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5):     # CCTV 1개 alive (2번)
                 ####if (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 1개 alive (3번)
                 
@@ -584,6 +588,8 @@ class GazeboEnv:
             #reward = self.get_reward_path_230206_noreliability(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)  # 230206
             #reward = self.get_reward(target, collision, action, min_laser) # 230205 for test
             #reward = self.get_reward_path_230203_TD3(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
+            #원복해야됨!
+            #reward = self.get_reward_path_230206_pureDRL(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
         else:
             #reward = self.get_reward(target, collision, action, min_laser)
             # 230227 pureDRL
@@ -844,6 +850,44 @@ class GazeboEnv:
             done = True
 
         return state, reward, done, target
+    
+    def IDR_checker(self):
+        
+        # for 사람 in 사람s
+        # cal. L2 dist btwn robot and human
+        IDR = 0.
+        SD = 999.
+        robot_p_x = self.last_odom.pose.pose.position.x
+        robot_p_y = self.last_odom.pose.pose.position.y
+        
+        if self.pedsim_agents_list_oracle is not None:
+            for actor in self.pedsim_agents_list_oracle:
+                dist_robot_h = np.linalg.norm([actor[0] - robot_p_x, actor[1] - robot_p_y])
+                #1. 매 스탭마다, 현재 로봇이 IS 안에 있는지 체크. 일단은 fixed된 1m
+                if dist_robot_h <= 1.0:
+                    IDR = 1.
+                #2. cal. L2 dist btwn robot and human. 젤 작은거 return
+                if dist_robot_h < SD:
+                    SD = dist_robot_h
+        return IDR, SD
+        
+        '''
+        for actor in actors.agent_states:
+            actor_id = str( actor.id )
+            actor_pose = actor.pose
+            #print("Spawning model: actor_id = %s", actor_id)
+            x= actor_pose.position.x
+            y= actor_pose.position.y
+            #print(actor_id, x, y)
+            actor_twist = actor.twist   # 230131
+            vx = actor_twist.linear.x
+            vy = actor_twist.linear.y
+            #print(actor_id, vx, vy)
+        '''
+        
+        return robot_p_x, robot_p_y
+        
+        #2. 매 스탭마다, 현재 로봇과 사람의 가장 가까운 거리 체크
 
     def reset(self):
         time.sleep(TIME_DELTA)  # 필요?
@@ -1841,11 +1885,11 @@ class GazeboEnv:
         self.dwa_x[4] = self.last_odom.twist.twist.angular.z
 
         ### dwa_pythonrobotics
-        ## 1. global path의 waypoints들을 고려해서 이동
-        #uu, xx = dwa_pythonrobotics.main(rx, ry, temp_gx, temp_gy, angle, self.dwa_x, ped_list)   
-        ## 2. fixed global goal만 고려 (naive)
+        ## 1. global path의 waypoints들을 고려해서 이동 (dwa+GP)
+        uu, xx = dwa_pythonrobotics.main(rx, ry, temp_gx, temp_gy, angle, self.dwa_x, ped_list)   
+        ## 2. fixed global goal만 고려 (naive dwa)
         #print('페드 리스트:',ped_list[:,:2])
-        uu, xx = dwa_pythonrobotics.main(rx, ry, gx, gy, angle, self.dwa_x, ped_list)     
+        #uu, xx = dwa_pythonrobotics.main(rx, ry, gx, gy, angle, self.dwa_x, ped_list)     
         
         diff_x = gx-rx
         diff_y = gy-ry

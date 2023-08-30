@@ -34,7 +34,7 @@ discount = 0.99   # 221007    # discount factor for reward (default: 0.99)
 tau = 0.005  # Soft target update variable (should be close to 0)    # target smoothing coefficient(τ) (default: 0.005)
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "Ours"  # name of the file to store the policy
-save_model = True  # Weather to save the model or not
+save_model = False  # Weather to save the model or not
 random_near_obstacle = False  # To take random actions near obstacles or not
 save_interval = 200
 
@@ -92,12 +92,12 @@ writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().str
 # Create the training environment
 #### 파라미터 ####
 # 1. 모델 불러오기(evaluate용 또는 이어서 학습하기)
-load_model = False  # Weather to load a stored model   
+load_model = True  # Weather to load a stored model   
 # 2. SAC 또는 SAC_PATH
 PATH_AS_INPUT = True  # sac path
 #PATH_AS_INPUT = False  # 폴스 (pure DRL) local 230214
 # 3. evaluate할 건지
-evaluate = False
+evaluate = True
 
 environment_dim = 20
 robot_dim = 4
@@ -253,10 +253,12 @@ for i_episode in itertools.count(1):
         success_i=0
         collision_i=0
         timeout_i = 0
+        avg_episode_IDR = 0
+        avg_episode_SD = 0
         #episodes = 10
         if evaluate:
-            #episodes = 100  # for evaluate
-            episodes = 200  # 230224
+            episodes = 100  # for fase evaluate
+            #episodes = 200  # 230224
         else:
             episodes = 10   # for training
         print('Validating... Evaluate:',evaluate)
@@ -267,6 +269,8 @@ for i_episode in itertools.count(1):
             episode_length = 0
             done = False
             flag = 0
+            episode_ITR = 0
+            episode_SD = 999
             while not done: 
                 action = agent.select_action(state, evaluate=True)
                 a_in = action # 230111
@@ -282,7 +286,12 @@ for i_episode in itertools.count(1):
                 episode_reward += reward
                 episode_time += 1
                 episode_length += a_in[0]  # 221225 linear_v를 이동거리로 계산
-
+                
+                # 230828 Social metric add
+                IDR_i, SD_i = env.IDR_checker()
+                episode_ITR += IDR_i
+                if SD_i <= episode_SD:
+                    episode_SD = SD_i
 
                 state = next_state
                 flag += 1
@@ -302,18 +311,24 @@ for i_episode in itertools.count(1):
             elif done:
                 status = 'Collision'
                 collision_i += 1
-            print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps time:', episode_time, 'eps length:', episode_length)
+            IDR_episode = episode_ITR / episode_time
+            avg_episode_IDR += IDR_episode
+            avg_episode_SD += episode_SD
+            print('Evaulate ',i,'th result, eps_R: ',episode_reward, 'Result: ', status, 'eps time:', episode_time, 'eps length:', episode_length, "IDR: ", IDR_episode, "SD:", episode_SD)
         avg_reward /= episodes
         if success_i != 0:
             avg_episode_time /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
             avg_episode_length /= success_i
 
-
+            #if :  # 230828 ITR: 해당 에피소드에서 침범횟수 / avg_episode_time
+            
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)
 
         print("----------------------------------------")
         print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel time: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_time, 2), round(avg_episode_length, 2)))  # 221109
         print('SR:',success_i/episodes, 'CR:',collision_i/episodes, 'TO:',timeout_i/episodes)
+        print("avg.IDR: ", avg_episode_IDR / episodes, 'avg.SD: ', avg_episode_SD / episodes)   # 230828 added
+
         print("----------------------------------------")
         
         if save_model:
