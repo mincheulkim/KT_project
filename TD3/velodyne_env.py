@@ -423,13 +423,13 @@ class GazeboEnv:
                     self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
             
             if PARTIAL_VIEW and SCENARIO=='DWA':   # partial view이고 dwa 환경일때
-                ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 3개 alive(ORIGINAL)
+                if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 3개 alive(ORIGINAL)
                     
                 # Ablation study
                 ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5):      # CCTV 2개 (1,2))
                 ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 2개 (1,3))
                 ####if (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 2개 (2,3))
-                if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1):      # CCTV 1개 alive (1번)
+                ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1):      # CCTV 1개 alive (1번)
                 ####if (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5):     # CCTV 1개 alive (2번)
                 ####if (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 1개 alive (3번)
                 
