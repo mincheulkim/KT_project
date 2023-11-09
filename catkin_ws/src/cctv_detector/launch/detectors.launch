@@ -1,0 +1,8 @@
+<launch>
+    <!-- cctv2 -->
+    <node name="cctv2_detector" pkg="cctv_detector" type="detect.py" output="screen" args="--cam cctv2 --camxy 10 443 77 218 433 218 503 446 --globalxy -1.0 -2.0 0.0 -5.0 -5.0 -5.0 -4.0 -2.0"/>
+    <!-- cctv3 -->
+    <node name="cctv3_detector" pkg="cctv_detector" type="detect.py" output="screen" args="--cam cctv3 --camxy 25 364 225 150 309 150 300 431 --globalxy 1.0 1.0 0.0 -5.0 -2.0 -5.0 -1.0 0.5"/>
+    <!-- cctv4 -->
+    <node name="cctv4_detector" pkg="cctv_detector" type="detect.py" output="screen" args="--cam cctv4 --camxy 78 474 201 184 327 166 431 471 --globalxy 4.0 0.5 4.0 -4.0 1.5 -5.0 2.0 0.5"/>
+</launch>

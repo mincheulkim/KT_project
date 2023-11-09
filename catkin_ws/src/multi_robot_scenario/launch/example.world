@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<sdf version="1.4">
+    <world name="default">
+    <!-- <include>
+        <uri>model://ground_plane</uri>
+    </include> -->
+    <include>
+        <uri>model://sun</uri>
+    </include>
+    <model name="my_mesh">
+        <pose>0 0 0  0 0 0</pose>
+        <static>true</static>
+        <link name="body">
+        <collision name="collision">
+            <geometry>
+                <mesh><uri>file:///home/mincheul-kim/DRL-robot-navigation/catkin_ws/src/multi_robot_scenario/launch/untitled.dae</uri></mesh>
+            </geometry>
+        </collision>
+        <visual name="visual">
+            <geometry>
+                <mesh><uri>file:///home/mincheul-kim/DRL-robot-navigation/catkin_ws/src/multi_robot_scenario/launch/untitled.dae</uri></mesh>
+            </geometry>
+        </visual>
+        </link>
+    </model>
+    <plugin name="ActorPosesPlugin" filename="libActorPosesPlugin.so">
+        </plugin> 
+    </world>
+</sdf>

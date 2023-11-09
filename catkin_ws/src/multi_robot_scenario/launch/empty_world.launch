@@ -25,8 +25,7 @@
   <arg name="pub_clock_frequency" default="1000"/>
 
   <!--220907 cctv 추가-->
-  <param name="camera_description" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv.xacro'"/>
-  <node name="camera_spawn" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param camera_description -model camera -x 0 -y 0 -z 7"/>
+
   <param name="camera_description2" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv2.xacro'"/>
   <node name="camera_spawn2" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param camera_description2 -model camera2 -x -2.5 -y -1.1 -z 2.0"/>
   <param name="camera_description3" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv3.xacro'"/>

@@ -3,9 +3,9 @@
     <joint name="world_joint" type="fixed">
         <origin xyz="0.0 0 0" rpy="0 0.592675 -1.5707"/>
         <parent link="world"/>
-        <child link="cctv3"/>
+        <child link="cctv2"/>
     </joint>
-    <link name="cctv3">
+    <link name="cctv2">
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
@@ -18,10 +18,10 @@
             <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
         </inertial>
     </link>
-    <gazebo reference="cctv3">
+    <gazebo reference="cctv2">
         <static>true</static>
         <turnGravityOff>true</turnGravityOff>
-        <sensor type="camera" name="cctv3">
+        <sensor type="camera" name="cctv2">
             <update_rate>30.0</update_rate>
             <camera name="head">
                 <horizontal_fov>1.3962634</horizontal_fov>
@@ -44,10 +44,10 @@
             <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
                 <alwaysOn>true</alwaysOn>
                 <updateRate>0.0</updateRate>
-                <cameraName>cctv3</cameraName>
-                <imageTopicName>/cctv3/image_raw</imageTopicName>
-                <cameraInfoTopicName>/cctv3/camera_info</cameraInfoTopicName>
-                <frameName>cctv3</frameName>
+                <cameraName>cctv2</cameraName>
+                <imageTopicName>/cctv2/image_raw</imageTopicName>
+                <cameraInfoTopicName>/cctv2/camera_info</cameraInfoTopicName>
+                <frameName>cctv2</frameName>
                 <hackBaseline>0.07</hackBaseline>
                 <distortionK1>0.0</distortionK1>
                 <distortionK2>0.0</distortionK2>

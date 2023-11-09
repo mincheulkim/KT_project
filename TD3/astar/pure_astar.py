@@ -257,8 +257,8 @@ class AStarPlanner:
         polygon_array = create_polygon([110,110], vertices)
         
         self.flow_map = np.array(self.flow_map)
-        
-        self.flow_map = polygon_array
+                
+        self.flow_map = polygon_array   # (110,110)
         
         robot_vx = r_linear * np.cos(r_angular)    # 로봇 글로벌 vx
         robot_vy = r_linear * np.sin(r_angular)    # 로봇 글로벌 vy(linear * heading)
@@ -297,17 +297,22 @@ class AStarPlanner:
                 # 로봇 속도 = [robot_vx, robot_vy]
                 # 1. relative 사람 속도 by 로봇
                 
-                rel_ped_robot_v = [ped[2] - robot_vx,    ped[3]-robot_vy]
+                #rel_ped_robot_v = [ped[2] - robot_vx,    ped[3]-robot_vy]
+                rel_ped_robot_v = [ped[2],    ped[3]]   # 231107
+                #skew_size_r = np.sqrt(rel_ped_robot_v[0]**2 + rel_ped_robot_v[1]**2)
+                #rel_ped_robot_v = [rel_ped_robot_v[0]/skew_size_r,rel_ped_robot_v[1]/skew_size_r]
                 # 2. goal nomial과 cosine similary 계산
                 def cos_sim(A, B):
                     return dot(A, B)/(norm(A)*norm(B))
                 cos_sim_ped = cos_sim(rel_ped_robot_v, goal_to_robot_vel)
+                
+                #print('사람위치',ped[0],ped[1],cos_sim_ped, '로봇',robot_vx, robot_vy, '사람속도:',ped[2],ped[3])
+                #print('로봇 인텐션:',goal_to_robot_vel,'rel.사람:',rel_ped_robot_v)
 
                 #print(i, cos_sim_ped)
                 
                 
                 '''
-                
                 cos_sim = dot(rel_ped_robot_v, goal_to_robot_vel) / (norm(rel_ped_robot_v)*norm(goal_to_robot_vel))
                 # uncertation가 기본 flow cost로 들어가 있다고 생각 as 0
                 print(i,'번째 ped의 cos_sim:',cos_sim)

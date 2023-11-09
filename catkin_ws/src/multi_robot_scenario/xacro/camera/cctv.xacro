@@ -1,7 +1,7 @@
 <robot name="camera">
     <link name="world"/>
     <joint name="world_joint" type="fixed">
-        <origin xyz="0.0 0 0" rpy="-1.5707 1.5707 0"/>
+        <origin xyz="0.0 0 0" rpy="0 0.78535 0.2"/>
         <parent link="world"/>
         <child link="cctv1"/>
     </joint>

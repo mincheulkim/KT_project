@@ -5,9 +5,9 @@
         <!--0.38535-->
         <!--r: roll(왼쪽으로 기움), p(pitch) y: yaw(좌우), 양수일 수록 밑을 내려봄, 음수면 왼쪽-->
         <parent link="world"/>
-        <child link="cctv2"/>
+        <child link="cctv1"/>
     </joint>
-    <link name="cctv2">
+    <link name="cctv1">
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
@@ -20,10 +20,10 @@
             <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
         </inertial>
     </link>
-    <gazebo reference="cctv2">
+    <gazebo reference="cctv1">
         <static>true</static>
         <turnGravityOff>true</turnGravityOff>
-        <sensor type="camera" name="cctv2">
+        <sensor type="camera" name="cctv1">
             <update_rate>30.0</update_rate>
             <camera name="head">
                 <horizontal_fov>1.3962634</horizontal_fov>
@@ -46,10 +46,10 @@
             <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
                 <alwaysOn>true</alwaysOn>
                 <updateRate>0.0</updateRate>
-                <cameraName>cctv2</cameraName>
-                <imageTopicName>/cctv2/image_raw</imageTopicName>
-                <cameraInfoTopicName>/cctv2/camera_info</cameraInfoTopicName>
-                <frameName>cctv2</frameName>
+                <cameraName>cctv1</cameraName>
+                <imageTopicName>/cctv1/image_raw</imageTopicName>
+                <cameraInfoTopicName>/cctv1/camera_info</cameraInfoTopicName>
+                <frameName>cctv1</frameName>
                 <hackBaseline>0.07</hackBaseline>
                 <distortionK1>0.0</distortionK1>
                 <distortionK2>0.0</distortionK2>

@@ -50,7 +50,13 @@ PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반)
 
 SCENARIO = 'DWA'    # TD3, warehouse, U, DWA
 
+PURE_GP = False # 231020  pure astar planner(IS 및 social cost 미고려)
+#PURE_GP = True
+time_interval = 20
+
 debug = False    # evaluate단에서 활성화할 시 시점과 종점을 대칭으로 생성해줌
+
+evaluate = True
 
 
 # Check if the random goal position is located on an obstacle and do not accept it if it is
@@ -257,6 +263,7 @@ class GazeboEnv:
         self.last_odom = None
         self.pedsim_agents_list = None
         self.pedsim_agents_list_oracle = None
+        self.pedsim_agents_list_oracle_id = None
         self.human_num = 12
 
         self.set_self_state = ModelState()
@@ -313,6 +320,7 @@ class GazeboEnv:
         self.publisher5 = rospy.Publisher("optimal_goal", MarkerArray, queue_size=1)
         self.publisher6 = rospy.Publisher("path_as_init", MarkerArray, queue_size=1)   # 221020
         self.publisher7 = rospy.Publisher("flow_map", MarkerArray, queue_size=1)   # 230221
+        self.publisher8 = rospy.Publisher("static_map", MarkerArray, queue_size=10)   # 231107
         self.velodyne = rospy.Subscriber(
             "/velodyne_points", PointCloud2, self.velodyne_callback, queue_size=1
         )
@@ -390,6 +398,7 @@ class GazeboEnv:
     def actor_poses_callback(self, actors):
         self.pedsim_agents_list = []
         self.pedsim_agents_list_oracle = []
+        self.pedsim_agents_list_oracle_id = []
         for actor in actors.agent_states:
             actor_id = str( actor.id )
             actor_pose = actor.pose
@@ -403,6 +412,7 @@ class GazeboEnv:
             #print(actor_id, vx, vy)
             
             self.pedsim_agents_list_oracle.append([x,y, vx, vy]) # 230828 for SD metric
+            self.pedsim_agents_list_oracle_id.append([actor_id, x, y])
             
             
             # 221114 partial view 상황 가정
@@ -615,11 +625,11 @@ class GazeboEnv:
             if wpt_distance < 1.5:    # 1.5 as ahead distance
                 RECAL_WPT = True
         
-        if DYNAMIC_GLOBAL and episode_steps%20 ==0:   # 선택 1(fixed rewrind)
-        #if DYNAMIC_GLOBAL and RECAL_WPT:             # 선택 2 아무 웨이포인트나 1.5안에 들어오면 replanning
-        #if DYNAMIC_GLOBAL and self.pedsim_agents_list != None:   # 선택 3. CCTV안에 pedsim list 들어오면   # 230206
-        #if DYNAMIC_GLOBAL and self.pedsim_agents_list != None and episode_steps%20 == 0:   # 선택 4. CCTV안에 pedsim list 들어오면 + 너무 자주 리플래닝 되지는 않게  # 230209
-        
+        #if DYNAMIC_GLOBAL and episode_steps%1 ==0:   # 선택 1(fixed rewrind)
+        #####if DYNAMIC_GLOBAL and RECAL_WPT:             # 선택 2 아무 웨이포인트나 1.5안에 들어오면 replanning
+        #####if DYNAMIC_GLOBAL and self.pedsim_agents_list != None:   # 선택 3. CCTV안에 pedsim list 들어오면   # 230206
+        if DYNAMIC_GLOBAL and self.pedsim_agents_list != None and episode_steps%time_interval == 0:   # 선택 4. CCTV안에 pedsim list 들어오면 + 너무 자주 리플래닝 되지는 않게  # 230209
+    
             while True:
                 try:
                     if SCENARIO=='warehouse':
@@ -644,7 +654,10 @@ class GazeboEnv:
                         gy = int((self.goal_y+map_bias)/resolution)
                         
                         self.pause()
-                        rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                        if PURE_GP:
+                            self.pedsim_agents_list = []    # Pure Global planner 하고 싶으면 주석해제
+                        #rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                        rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, vel_cmd.linear.x, angle, skew_x, skew_y, self.pedsim_agents_list) #
                         self.flow_map = flow_map   # 230221
                         self.unpause()
                         
@@ -655,11 +668,7 @@ class GazeboEnv:
                         #print(final_path)
                         final_path = np.array(final_path)
                         final_path = final_path / 10
-                        path = final_path
-                        
-                        
-                        
-                        
+                        path = final_path 
                         
                         #path = astar.pure_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
                     self.path_i_rviz = path
@@ -668,7 +677,7 @@ class GazeboEnv:
                     path = [[self.goal_x+5.5, self.goal_y+5.5]]   # 230209 5.5 더해줌
                     path = np.asarray(path)   # 221103
                     self.path_i_rviz = path
-                    #print('예외발생[step]. path를 global goal로 지정: ', path)
+                    print('예외발생[step]. path를 global goal로 지정: ', path)
                     break
             #print('스탭때 패스:',path)
             #print('path as rviz:',self.path_i_rviz)
@@ -681,7 +690,7 @@ class GazeboEnv:
             for i in range(self.path_as_input_no):
                 self.path_as_input.append([self.goal_x, self.goal_y])
                 
-            self.path_as_input = np.asarray(self.path_as_input)
+            self.path_as_input = np.asarray(self.path_as_input, dtype=float)
             if SCENARIO=='warehouse':
                 # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
                 if len(path) < self.path_as_input_no:
@@ -753,10 +762,15 @@ class GazeboEnv:
                     # 230127 Sampling 2. 패스중 5개를 uniform하게 샘플링
                     #print('오리지널 패스:',path)
                     divdiv = int(len(path) / self.path_as_input_no)   # e.g. 13/5 = 2.6 --int--> 2
+                    self.path_as_input.astype(float)
                     for i in range(self.path_as_input_no):
                         #print(i, divdiv, len(path))
                         #print((i+1)*divdiv)
-                        self.path_as_input[i,:] = path[(i+1)*divdiv-1, :]-5.5
+                        self.path_as_input[i,:] = (path[(i+1)*divdiv-1, :]-5.5)
+                        #print('기본패스:',path[(i+1)*divdiv-1, :])
+                        #print('bias패스:',path[(i+1)*divdiv-1, :]-5.5)
+                        #print('입력휴패스:',self.path_as_input[i,:])   # 231107 integer로 바뀌어 들어가는 문제 식별
+                        
                     
                     '''
                     # 230130 Sampling 3. 패스중 landmark selection
@@ -786,9 +800,8 @@ class GazeboEnv:
                 # 만약 크기 같다면: 
                 elif len(path) == self.path_as_input_no:
                     self.path_as_input = path - 5.5
-                    
+
             self.path_as_init = self.path_as_input
-            
         ### TODO adaptiveavgpooling2D
         ### m = nn.AdpativeAvgPool1d(5)
         ### input1 = torch.rand(1, 64, 8)
@@ -810,14 +823,14 @@ class GazeboEnv:
             optimal_g_x = xx
             optimal_g_y = yy
             
-            skew_x = optimal_g_x - self.odom_x
-            skew_y = optimal_g_y - self.odom_y
-            dot = skew_x * 1 + skew_y * 0
-            mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
+            skew_xx = optimal_g_x - self.odom_x
+            skew_yy = optimal_g_y - self.odom_y
+            dot = skew_xx * 1 + skew_yy * 0
+            mag1 = math.sqrt(math.pow(skew_xx, 2) + math.pow(skew_yy, 2))
             mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
             beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
-            if skew_y < 0:
-                if skew_x < 0:
+            if skew_yy < 0:
+                if skew_xx < 0:
                     beta = -beta
                 else:
                     beta = 0 - beta
@@ -848,6 +861,21 @@ class GazeboEnv:
         if self.last_odom.pose.pose.position.z > 0.05:   # 에러날 대 보면 0.12, 0.22, .24 막 이럼
             print('Error: Locomotion fail. 강제로 done = True')
             done = True
+            
+        if evaluate:   # 231025   매번 할때마다 안에 텍스트 지워야함
+            #print('로봇 위치:',self.odom_x, self.odom_y)
+            #print('사람 위치:',self.pedsim_agents_list_oracle_id)
+        
+            with open("robot_traj.txt", "a") as f:
+                
+                x, y = self.odom_x, self.odom_y
+                f.write(f"{x}, {y}\n")
+                
+            with open("ped_traj.txt", "a") as f:
+                
+                x = self.pedsim_agents_list_oracle_id
+                f.write(f"{x}\n")
+
 
         return state, reward, done, target
     
@@ -932,6 +960,12 @@ class GazeboEnv:
             ### DEBUG 용
             ###x = -4.5
             ###y = 4.5
+        
+        if evaluate:
+            x = 2.5         #Holding
+            y = -4.5
+            #x = -4.5         #Holding
+            #y = 4.5
                 
         
                 
@@ -954,6 +988,12 @@ class GazeboEnv:
             ###self.goal_x = 3.0
             ###self.goal_y = -4.0
                 
+                
+        if evaluate:
+            self.goal_x = 0    # holding
+            self.goal_y = 4.5
+            #self.goal_x = 3 
+            #self.goal_y = -4
                 
                 
         #angle = np.random.uniform(-np.pi, np.pi)
@@ -1092,6 +1132,8 @@ class GazeboEnv:
                         oy.append(80)
                     
                     self.a_star = astar.pure_astar.AStarPlanner(ox, oy, grid_size, robot_radius)
+                    if PURE_GP:
+                        self.pedsim_agents_list = []   # Pure ASTAR global pallner하고 싶으면 주석 해제
                     rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
                     self.flow_map = flow_map  # 230221
                     
@@ -1123,7 +1165,7 @@ class GazeboEnv:
         self.path_as_input = []
         for i in range(self.path_as_input_no):
             self.path_as_input.append([self.goal_x, self.goal_y])
-        self.path_as_input = np.asarray(self.path_as_input)
+        self.path_as_input = np.asarray(self.path_as_input, dtype=float)
         if SCENARIO=='warehouse':
             # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
             if len(path) < self.path_as_input_no:
@@ -1247,14 +1289,14 @@ class GazeboEnv:
             optimal_g_x = xx
             optimal_g_y = yy
             
-            skew_x = optimal_g_x - self.odom_x
-            skew_y = optimal_g_y - self.odom_y
-            dot = skew_x * 1 + skew_y * 0
-            mag1 = math.sqrt(math.pow(skew_x, 2) + math.pow(skew_y, 2))
+            skew_xx = optimal_g_x - self.odom_x
+            skew_yy = optimal_g_y - self.odom_y
+            dot = skew_xx * 1 + skew_yy * 0
+            mag1 = math.sqrt(math.pow(skew_xx, 2) + math.pow(skew_yy, 2))
             mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
             beta = math.acos(dot / ((mag1 * mag2)+0.000000001))
-            if skew_y < 0:
-                if skew_x < 0:
+            if skew_yy < 0:
+                if skew_xx < 0:
                     beta = -beta
                 else:
                     beta = 0 - beta
@@ -1337,6 +1379,73 @@ class GazeboEnv:
     def publish_markers(self, action):
         # Publish visual data in Rviz
         # marker = init goal pose
+        marker_lifetime = rospy.Duration(1.0)
+
+        
+        # flow_map from pure_astar visualize
+        '''
+        markerArray7 = MarkerArray()
+        if self.flow_map is None:
+            pass
+        else:
+            #print('self.flow_map:',self.flow_map)
+            #print(self.flow_map.shape)
+            marker_id = 0
+            for i in range(self.flow_map.shape[0]):
+                for j in range(self.flow_map.shape[1]):
+                    marker7 = Marker()
+                    marker7.action = Marker.DELETE
+                    #marker7.lifetime = marker_lifetime
+                    marker7.id = marker_id #(i*10)+j
+                    #print(marker7.id)
+                    marker7.header.frame_id = "odom"
+                    marker7.type = marker7.CYLINDER
+                    marker7.action = marker7.ADD
+                    marker7.scale.x = 0.1
+                    marker7.scale.y = 0.1
+                    marker7.scale.z = 0.01
+                    marker7.color.a = 0.51
+                    marker7.color.g = 0.5
+                    marker7.color.b = 0.5
+                    #print(self.flow_map[i][j], self.flow_map[i][j] + 99, (self.flow_map[i][j] + 99)/198)
+                    if self.flow_map[i][j] == 0.0:
+                        marker7.color.r = 0.5
+                    else:
+                        ratio = self.flow_map[i][j] / 99
+                        #print('색깔:',self.flow_map[i][j])
+                        #marker7.color.r = (self.flow_map[i][j]+98)/198
+                        #print(i,'라티오:',ratio)
+                        marker7.color.r = ratio
+                        marker7.color.g = 1-ratio
+                        marker7.color.b = 0.0
+                        
+                    #marker7.color.g = 0.8
+                    #marker7.color.b = 0.7
+                    
+                    marker7.pose.orientation.w = 1.0
+                    if SCENARIO=='warehouse':
+                        marker7.pose.position.x = i - 10
+                        marker7.pose.position.y = j - 10 
+                    elif SCENARIO=='TD3':
+                        marker7.pose.position.x = i - 5.5
+                        marker7.pose.position.y = j - 5.5
+                    elif SCENARIO=='U':
+                        marker7.pose.position.x = i - 5.5
+                        marker7.pose.position.y = j - 5.5
+                    elif SCENARIO=='DWA':
+                        marker7.pose.position.x = i/10 - 5.5
+                        marker7.pose.position.y = j/10 - 5.5
+                    #print([i,j],'의:',[marker7.pose.position.x,marker7.pose.position.y],marker7.pose.position.z)
+                    marker7.pose.position.z = (self.flow_map[i][j] + 99)/198
+
+                    markerArray7.markers.append(marker7)
+                    marker_id += 1
+
+        self.publisher7.publish(markerArray7)
+        '''
+        
+        
+        
         markerArray = MarkerArray()
         marker = Marker()
         marker.header.frame_id = "odom"
@@ -1376,7 +1485,7 @@ class GazeboEnv:
         marker2.pose.position.z = 0
 
         markerArray2.markers.append(marker2)
-        self.publisher2.publish(markerArray2)
+        #self.publisher2.publish(markerArray2)
 
         markerArray3 = MarkerArray()
         marker3 = Marker()
@@ -1396,8 +1505,7 @@ class GazeboEnv:
         marker3.pose.position.z = 0
 
         markerArray3.markers.append(marker3)
-        self.publisher3.publish(markerArray3)
-        
+        #self.publisher3.publish(markerArray3)
         # global trajectory
         markerArray4 = MarkerArray()
         #print('self.pre_i:',self.path_i_prev)
@@ -1406,6 +1514,8 @@ class GazeboEnv:
             marker4 = Marker()
             marker4.id = i
             marker4.header.frame_id = "odom"
+            marker4.action = Marker.DELETE
+            marker4.lifetime = marker_lifetime 
             marker4.type = marker4.CYLINDER
             marker4.action = marker4.ADD
             marker4.scale.x = 0.1
@@ -1458,9 +1568,9 @@ class GazeboEnv:
         self.publisher5.publish(markerArray5)
         
         # 221020
-        # 5 optimal path
+        # 5 optimal path (waypoints)
         markerArray6 = MarkerArray()
-        for i, pose in enumerate(self.path_as_init):
+        for i, pose in enumerate(self.path_as_input):
     
             marker6 = Marker()
             marker6.id = i
@@ -1475,60 +1585,69 @@ class GazeboEnv:
             marker6.color.g = 0.1
             marker6.color.b = 0.1
             marker6.pose.orientation.w = 1.0
-            marker6.pose.position.x = pose[0]
-            marker6.pose.position.y = pose[1]
+            #print(self.get_reliablity(self.path_as_input, PARTIAL_VIEW)[i])
+            #if self.get_reliablity(self.path_as_input, PARTIAL_VIEW)[i] == [1.0]:
+            #    marker6.color.r = 0.0
+            #    marker6.color.g = 0.5
+            #    marker6.color.b = 1.0
+                
+            marker6.pose.position.x = pose[0] 
+            marker6.pose.position.y = pose[1] 
             marker6.pose.position.z = 0
 
             markerArray6.markers.append(marker6)
 
         self.publisher6.publish(markerArray6)
         
+        # static map # 231107
+        markerArray8 = MarkerArray()
+        for i in range(4):
+            marker8 = Marker()
+            marker8.header.frame_id = "odom"
+            marker8.ns = "square"
+            marker8.id = i
+            marker8.type = marker.CUBE
+            marker5.action = marker.ADD
+            marker8.lifetime = rospy.Duration()
+            marker8.color.a = 1.0
+            marker8.color.r = 0.1
+            marker8.color.g = 0.1
+            marker8.color.b = 0.1
+            marker8.pose.orientation.w = 1.0
+            if i==0:
+                marker8.scale.x = 2.0
+                marker8.scale.y = 3.5
+                marker8.scale.z = 0.1
+                marker8.pose.position.x = -2.5
+                marker8.pose.position.y = 0.75
+                markerArray8.markers.append(marker8)
+            elif i==1:
+                marker8.scale.x = 2.0
+                marker8.scale.y = 2.5
+                marker8.scale.z = 0.1
+                marker8.pose.position.x = 1.0
+                marker8.pose.position.y = -1.25
+                markerArray8.markers.append(marker8)
+            elif i==2:
+                marker8.scale.x = 1.5
+                marker8.scale.y = 5.5
+                marker8.scale.z = 0.1
+                marker8.pose.position.x = 4.75
+                marker8.pose.position.y = -2.75
+                markerArray8.markers.append(marker8)
+            elif i==3:
+                marker8.scale.x = 3.5
+                marker8.scale.y = 0.2
+                marker8.scale.z = 0.1
+                marker8.pose.position.x = 3.75
+                marker8.pose.position.y = 2.5           
+                marker8.pose.position.z = 0
+                markerArray8.markers.append(marker8)
+
+            
+
+        self.publisher8.publish(markerArray8)
         
-        '''
-        # flow_map from pure_astar visualize
-        markerArray7 = MarkerArray()
-        if self.flow_map is None:
-            pass
-        else:
-            #print('self.flow_map:',self.flow_map)
-            #print(self.flow_map.shape)
-            marker_id = 0
-            for i in range(self.flow_map.shape[0]):
-                for j in range(self.flow_map.shape[1]):
-                    marker7 = Marker()
-                    marker7.id = marker_id #(i*10)+j
-                    #print(marker7.id)
-                    marker7.header.frame_id = "odom"
-                    marker7.type = marker7.CYLINDER
-                    marker7.action = marker7.ADD
-                    marker7.scale.x = 0.1
-                    marker7.scale.y = 0.1
-                    marker7.scale.z = 0.01
-                    marker7.color.a = 0.51
-                    marker7.color.r = (self.flow_map[i][j] + 99)/198
-                    marker7.color.g = 0.8
-                    marker7.color.b = 0.7
-                    marker7.pose.orientation.w = 1.0
-                    if SCENARIO=='warehouse':
-                        marker7.pose.position.x = i - 10
-                        marker7.pose.position.y = j - 10 
-                    elif SCENARIO=='TD3':
-                        marker7.pose.position.x = i - 5.5
-                        marker7.pose.position.y = j - 5.5
-                    elif SCENARIO=='U':
-                        marker7.pose.position.x = i - 5.5
-                        marker7.pose.position.y = j - 5.5
-                    elif SCENARIO=='DWA':
-                        marker7.pose.position.x = i/10 - 5.5
-                        marker7.pose.position.y = j/10 - 5.5
-                    #print([i,j],'의:',[marker7.pose.position.x,marker7.pose.position.y],marker7.pose.position.z)
-                    marker7.pose.position.z = (self.flow_map[i][j] + 99)/198
-
-                    markerArray7.markers.append(marker7)
-                    marker_id += 1
-
-        self.publisher7.publish(markerArray7)
-        '''
     
     # 220920    
     def harris_corder_detector(self, rgb_cv_cctv1):
@@ -1685,6 +1804,7 @@ class GazeboEnv:
                     reward = diff_dist_wpt
                 
                 reward = reward * relliability_score[i][0]   # 221101
+                #print(i, reward, relliability_score)
                 
                 R_w += reward
                 #print(i,'번째 웨이포인트의 신뢰도:',relliability_score[i][0],'리워드:',reward)
@@ -1886,10 +2006,10 @@ class GazeboEnv:
 
         ### dwa_pythonrobotics
         ## 1. global path의 waypoints들을 고려해서 이동 (dwa+GP)
-        uu, xx = dwa_pythonrobotics.main(rx, ry, temp_gx, temp_gy, angle, self.dwa_x, ped_list)   
+        #uu, xx = dwa_pythonrobotics.main(rx, ry, temp_gx, temp_gy, angle, self.dwa_x, ped_list)   
         ## 2. fixed global goal만 고려 (naive dwa)
         #print('페드 리스트:',ped_list[:,:2])
-        #uu, xx = dwa_pythonrobotics.main(rx, ry, gx, gy, angle, self.dwa_x, ped_list)     
+        uu, xx = dwa_pythonrobotics.main(rx, ry, gx, gy, angle, self.dwa_x, ped_list)     
         
         diff_x = gx-rx
         diff_y = gy-ry
