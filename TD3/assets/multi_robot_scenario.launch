@@ -7,11 +7,13 @@
   <include file="$(find multi_robot_scenario)/launch/empty_world.launch" />
 
   <!-- Robot with diff drive -->
+  <group ns="r1">
   <include file="$(find multi_robot_scenario)/launch/pioneer3dx.gazebo.launch">
      <arg name="robot_name" value="r1" />
      <!--220919 robot init pose when gazebo starts-->
-     <arg name="robot_position" value="-x -3.0 -y -3.0 -z 0.01 -R 0 -P 0 -Y +0.0" />
+     <arg name="robot_position" value="-x 0.0 -y 0.0 -z 0.01 -R 0 -P 0 -Y +0.0" />
    </include>
+  </group>
 
   <!--220919 from pedsim_gazebo_plugin/launch/social_contexts.launch-->
   <!-- this node spawn pedsim actors to gazebo once, then the plugin updates their pose -->  

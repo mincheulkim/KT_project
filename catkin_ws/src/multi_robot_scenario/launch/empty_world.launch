@@ -16,7 +16,7 @@
   <!--환경 불러오는 줄-->
   <!--arg name="world_name" default="TD3.world"/-->
   <!--arg name="world_name" default="U.world"/-->
-  <arg name="world_name" default="untitle.world"/>    <!--221117-->
+  <arg name="world_name" default="example.world"/>    <!--221117-->
   <!--arg name="world_name" default="cafe.world"/-->  <!--220923 gazebo default cafe-->
   <!--arg name="world_name" default="warehouse.world"/-->  <!--220923 gazebo default cafe-->
   <!--arg name="world_name" default="TD3_empty.world"/-->  <!--220923 gazebo default cafe-->

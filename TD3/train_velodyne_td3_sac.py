@@ -7,6 +7,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+import rvo2
+
+
 from numpy import inf
 from torch.utils.tensorboard import SummaryWriter
 
@@ -24,7 +28,7 @@ from gym import spaces
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # cuda or cpu
 seed = 123456  # Random seed number    
 #seed = 4  # Random seed number    # 221007
-max_ep = 500  # maximum number of steps per episode
+max_ep = 50000  # maximum number of steps per episode
 #batch_size = 40  # Size of the mini-batch
 #batch_size = 256  # 221007
 batch_size = 512  # 221007
@@ -94,10 +98,10 @@ writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().str
 # 1. 모델 불러오기(evaluate용 또는 이어서 학습하기)
 load_model = True  # Weather to load a stored model   
 # 2. SAC 또는 SAC_PATH
-PATH_AS_INPUT = True  # sac path
-#PATH_AS_INPUT = False  # 폴스 (pure DRL) local 230214
+#PATH_AS_INPUT = True  # sac path
+PATH_AS_INPUT = False  # 폴스 (pure DRL) local 230214
 # 3. evaluate할 건지
-evaluate = True
+evaluate = False
 
 environment_dim = 20
 robot_dim = 4
@@ -139,6 +143,7 @@ updates = 0
 
 best_avg_reward = -999.0
 
+
 for i_episode in itertools.count(1):
     episode_reward = 0
     episode_steps = 0
@@ -146,6 +151,7 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
+        '''
         if args.start_steps > total_numsteps:    # start_steps = 10000
             #action = agent.select_action(state)    # before 221110 이거는 검증해봐야 하는 부분
             #action = (action + np.random.normal(0, 0.2, size=action_dim)).clip(-max_action, max_action)   
@@ -155,10 +161,15 @@ for i_episode in itertools.count(1):
             action = agent.select_action(state)  # Sample action from policy
             a_in = action # 230111
         '''     
+        '''
         # 1. DWA 모드
         action = env.get_action_dwa()
         a_in = action
-        '''
+        '''     
+        # 2. RVO 모드
+        action = env.get_action_rvo()
+        #print('Final 액션:',action)
+        a_in = action
 
         if len(memory) > args.batch_size:
             # Number of updates per step in environment
@@ -192,7 +203,8 @@ for i_episode in itertools.count(1):
                 action[0] = -1
         
         
-        a_in = [(action[0] + 1) / 2, action[1]]  
+        #a_in = [(action[0] + 1) / 2, action[1]]  
+        a_in = action
         next_state, reward, done, target = env.step(a_in, episode_steps) # 221102
         episode_steps += 1
         total_numsteps += 1
@@ -214,13 +226,13 @@ for i_episode in itertools.count(1):
 
         state = next_state
         
-        if episode_steps > 501:  # 221201
+        if episode_steps > 50001:  # 221201
             print('강제 break')
             break
         
 
-    if total_numsteps > args.num_steps:
-        break
+    #if total_numsteps > args.num_steps:
+    #    break
     
     # 221104
     status = 'NA'
