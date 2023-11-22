@@ -3,8 +3,8 @@
 2. 각 터미널에서 모두 다음 명령어 실행  
    export ROS_HOSTNAME=localhost/  
    export ROS_PORT_SIM=11311/  
-   export GAZEBO_RESOURCE_PATH=/DRL-robot-navigation/catkin_ws/src/multi_robot_scenario/launch  
-   export GAZEBO_MODEL_PATH=/DRL-robot-navigation/catkin_ws/src/multi_robot_scenario/launch  
+   export GAZEBO_RESOURCE_PATH=~/DRL-robot-navigation/catkin_ws/src/multi_robot_scenario/launch  
+   export GAZEBO_MODEL_PATH=~/DRL-robot-navigation/catkin_ws/src/multi_robot_scenario/launch  
    source ~/.bashrc  
    cd ~/DRL-robot-navigation/catkin_ws  
    source devel_isolated/setup.bash  
