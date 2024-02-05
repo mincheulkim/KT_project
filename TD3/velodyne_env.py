@@ -51,12 +51,12 @@ PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반)
 SCENARIO = 'DWA'    # TD3, warehouse, U, DWA
 
 PURE_GP = False # 231020  pure astar planner(IS 및 social cost 미고려)
-#PURE_GP = True
+#PURE_GP = True # SimpleGP 트리거
 time_interval = 20
 
 debug = False    # evaluate단에서 활성화할 시 시점과 종점을 대칭으로 생성해줌
 
-evaluate = True
+evaluate = False   # qual figure 용. True로 할시, 각 시나리오 별 정해진 위치 + robot, ped_traj.txt 루트에 생성
 
 
 # Check if the random goal position is located on an obstacle and do not accept it if it is
