@@ -34,7 +34,7 @@ discount = 0.99   # 221007    # discount factor for reward (default: 0.99)
 tau = 0.005  # Soft target update variable (should be close to 0)    # target smoothing coefficient(τ) (default: 0.005)
 buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "Ours"  # name of the file to store the policy
-save_model = False  # Weather to save the model or not
+save_model = True  # Weather to save the model or not
 random_near_obstacle = False  # To take random actions near obstacles or not
 save_interval = 200
 

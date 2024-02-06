@@ -663,7 +663,8 @@ class GazeboEnv:
         #if DYNAMIC_GLOBAL and episode_steps%1 ==0:   # 선택 1(fixed rewrind)
         #####if DYNAMIC_GLOBAL and RECAL_WPT:             # 선택 2 아무 웨이포인트나 1.5안에 들어오면 replanning
         #####if DYNAMIC_GLOBAL and self.pedsim_agents_list != None:   # 선택 3. CCTV안에 pedsim list 들어오면   # 230206
-        if DYNAMIC_GLOBAL and self.pedsim_agents_list != None and episode_steps%time_interval == 0:   # 선택 4. CCTV안에 pedsim list 들어오면 + 너무 자주 리플래닝 되지는 않게  # 230209
+        #if DYNAMIC_GLOBAL and self.pedsim_agents_list != None and episode_steps%time_interval == 0:   # 선택 4. CCTV안에 pedsim list 들어오면 + 너무 자주 리플래닝 되지는 않게  # 230209
+        if DYNAMIC_GLOBAL and episode_steps%time_interval == 0:   # 선택 5. pedsim 무관 replanning  240206
     
             while True:
                 try:
