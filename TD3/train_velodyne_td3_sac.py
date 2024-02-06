@@ -97,7 +97,7 @@ load_model = True  # Weather to load a stored model
 PATH_AS_INPUT = True  # sac path
 #PATH_AS_INPUT = False  # 폴스 (pure DRL) local 230214
 # 3. evaluate할 건지
-evaluate = True
+evaluate = False
 
 environment_dim = 20
 robot_dim = 4
