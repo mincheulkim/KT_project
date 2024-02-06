@@ -14,6 +14,7 @@ import planner_U  # 221117
 import planner_DWA
 import planner_astar # 230131
 import astar.pure_astar  # 230213
+import astar.pure_astar_RAL  # 240206
 from os import path
 
 import dwa_pythonrobotics as dwa_pythonrobotics
@@ -176,49 +177,34 @@ def check_pos_warehouse(x, y):   # 221102
 
 def check_pos_warehouse_RAL(x, y):   # 240205 RA-L Rebuttal stage
     # Buffer 추가 240205
-    buffer_length = 0.3
+    buffer_length = 0.5
     goal_ok = True
-    # wall2
-    if -9.0+buffer_length > x > -1.0-buffer_length and -6.0+buffer_length > y > -10.0-buffer_length:
+    # 1번
+    if -10-buffer_length < x < -9+buffer_length and -10-buffer_length < y < 8+buffer_length:
         goal_ok = False
-    # wall3
-    if -9.0+buffer_length > x > -10.0-buffer_length and 9.0+buffer_length > y > -10.0-buffer_length:
+    elif -10-buffer_length < x < -1+buffer_length and -10-buffer_length < y < -5+buffer_length:
         goal_ok = False
-    # NW three pannels
-    if -0.0+buffer_length > x > -7-buffer_length and 7.3+buffer_length > y > 5.5-buffer_length:
+    elif -1-buffer_length < x < 10+buffer_length and -10-buffer_length < y < -9.7+buffer_length:
         goal_ok = False
-    # NW two pannels
-    if -8.8+buffer_length > x > -4.2-buffer_length and 3+buffer_length > y > 1-buffer_length:
+    elif 2.2-buffer_length < x < 7.3+buffer_length and -9.7-buffer_length < y < -5.9+buffer_length:
         goal_ok = False
-    # control panel
-    if 2.0701+0.4336+buffer_length > x > 2.0701-0.4336-buffer_length and 1.1622+0.3+buffer_length > y > 1.1622-0.3-buffer_length:
+    elif -7.5-buffer_length < x < 0+buffer_length and 5.5-buffer_length < y < 7.5+buffer_length:
         goal_ok = False
-    # rack1
-    if 7.35056+0.4222+buffer_length > x > 7.35056-0.4222-buffer_length and 1.7443+0.9779+buffer_length > y > 1.7443-0.9779-buffer_length:
+    elif -10 < x < -4.6+buffer_length and 1-buffer_length < y < 2.8+buffer_length:
         goal_ok = False
-    # rack2
-    if 5.36795+0.4222+buffer_length > x > 5.36795-0.4222-buffer_length and 1.7443+0.9779+buffer_length > y > 1.7443-0.9779-buffer_length:
+    elif 5-buffer_length < x < 7.7+buffer_length and 0.7-buffer_length < y < 2.8+buffer_length:
         goal_ok = False
-    # rack3
-    if 7.001420+0.4222+buffer_length > x > 7.001420-0.4222-buffer_length and -7.646700+1.95581+buffer_length > y > -7.646700-1.95581-buffer_length:
+    elif 2.5-buffer_length < x < 8.5+buffer_length and 5.5-buffer_length < y < 6+buffer_length:
         goal_ok = False
-    # rack4
-    if 4.97338+0.4222+buffer_length > x > 4.97338-0.4222-buffer_length and -7.646700+1.95581+buffer_length > y > -7.646700-1.95581-buffer_length:
+    elif 1.7-buffer_length < x < 3.1+buffer_length and 0.8-buffer_length < y < 1.5+buffer_length:
         goal_ok = False
-    # rack5
-    if 2.669490+0.4222+buffer_length > x > 2.669490-0.4222-buffer_length and -7.646700+1.95581+buffer_length > y > -7.646700-1.95581-buffer_length:
+    elif -4.2-buffer_length < x < -3.6+buffer_length and -2.6-buffer_length < y < -2.1+buffer_length:
         goal_ok = False
-    # pole1
-    if 5.02174+0.245805+buffer_length > x > 5.02174-0.245805-buffer_length and -2.39478+0.245805+buffer_length > y > -2.39478-0.245805-buffer_length:
+    elif 0.1-buffer_length < x < 0.6+buffer_length and -2.6-buffer_length < y < -2.1+buffer_length:
         goal_ok = False
-    # pole2
-    if 0.470710+0.245805+buffer_length > x > 0.470710-0.245805-buffer_length and -2.39478+0.245805+buffer_length > y > -2.39478-0.245805-buffer_length:
-        goal_ok = False
-    # pole3
-    if -3.93786+0.245805+buffer_length > x > -3.93786-0.245805-buffer_length and -2.39478+0.245805+buffer_length > y > -2.39478-0.245805-buffer_length:
-        goal_ok = False
-    # 전체 지도 [-10, 10] 넘어가는 경우    # 221108
-    if x < -10 or x > 10 or y < -10 or y > 10:
+    elif 4.7-buffer_length < x < 5.3+buffer_length and -2.6-buffer_length < y < -2.1+buffer_length:
+        goal_ok = False    
+    elif x <= -9.5 or x >= 9.5 or y <= -9.5 or y >= 9.5:
         goal_ok = False
         
     return goal_ok
@@ -702,27 +688,50 @@ class GazeboEnv:
                         gx = int((self.goal_x+map_bias)/resolution)
                         gy = int((self.goal_y+map_bias)/resolution)
                         
-                        self.pause()
+                        #self.pause()   # 240206 한번 해제해 볼까?
                         if PURE_GP:
                             self.pedsim_agents_list = []    # Pure Global planner 하고 싶으면 주석해제
                         #rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
                         rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, vel_cmd.linear.x, angle, skew_x, skew_y, self.pedsim_agents_list) #
                         self.flow_map = flow_map   # 230221
-                        self.unpause()
+                        #self.unpause()
                         
                         final_path = []
                         for path in zip (rx, ry):
                             final_path.append([path[0], path[1]])
-                        #final_path.reverse()
-                        #print(final_path)
+
                         final_path = np.array(final_path)
                         final_path = final_path / 10
                         path = final_path 
                         #path = astar.pure_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
                     elif SCENARIO=='warehouse_RAL':
-                        ### TODO ###
-                        path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
-                    self.path_i_rviz = path
+                        ### TODO ###                        
+                        map_bias = 10.0
+                        resolution = 0.1
+                        grid_size = 1.0  # [m]
+                        robot_radius = 10.0  # 5.0[m]   
+                        sx = int((self.odom_x+map_bias)/resolution)
+                        sy = int((self.odom_y+map_bias)/resolution)
+                        gx = int((self.goal_x+map_bias)/resolution)
+                        gy = int((self.goal_y+map_bias)/resolution)
+                        self.pause()
+                        if PURE_GP:
+                            self.pedsim_agents_list = []   
+                        #rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)  # ??
+                        rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, vel_cmd.linear.x, angle, skew_x, skew_y, self.pedsim_agents_list)
+                        self.flow_map = flow_map   # RViz에 보여주기 위해 저장
+                        self.unpause()
+                        
+                        final_path = []
+                        for path in zip (rx, ry):
+                            final_path.append([path[0], path[1]])
+
+                        #print(final_path)
+                        final_path = np.array(final_path)
+                        final_path = final_path / map_bias
+                        path = final_path 
+                        
+                    self.path_i_rviz = path   # 각 시나리오별로 얻은 path를 self.path_i_rviz에 저장
                     break
                 except:
                     path = [[self.goal_x+5.5, self.goal_y+5.5]]   # 230209 5.5 더해줌
@@ -852,23 +861,21 @@ class GazeboEnv:
                 elif len(path) == self.path_as_input_no:
                     self.path_as_input = path - 5.5
             if SCENARIO=='warehouse_RAL':   # 240205 for RA-L Rebuttal stage
-                ### TODO ### 위에 DWA보고 수정
                 # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
                 if len(path) < self.path_as_input_no:
-                    #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
                     self.path_as_input[:len(path), :] = path-10.0
-                
-                # 221114
-                # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
+
+                # 만약 path가 더 길다면: 
                 elif len(path) > self.path_as_input_no:   # 8>5
-                     # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
-                    numbers = np.random.choice(range(0, len(path)), 5, replace = False)
-                    for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
-                        self.path_as_input[i, :] = path[number, :] - 10.0
-                                            
+                    # 230127 패스중 5개를 uniform하게 샘플링
+                    divdiv = int(len(path) / self.path_as_input_no)   # e.g. 13/5 = 2.6 --int--> 2
+                    for i in range(self.path_as_input_no):
+                        self.path_as_input[i,:] = path[(i+1)*divdiv-1, :]-10.0
+                
                 # 만약 크기 같다면: 
                 elif len(path) == self.path_as_input_no:
-                    self.path_as_input = path - 10.0                    
+                    self.path_as_input = path - 10.0                
+           
 
             self.path_as_init = self.path_as_input
         ### TODO adaptiveavgpooling2D
@@ -1221,22 +1228,128 @@ class GazeboEnv:
                     
                     #path = astar.pure_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
                 elif SCENARIO=='warehouse_RAL':   # 240205
-                    ### TODO ###
-                    path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
+                    ######
+                    map_bias = 10.0
+                    resolution = 0.1
+                    grid_size = 1.0  # [m]
+                    robot_radius = 10.0  # 5.0[m]   
+                    sx = int((self.odom_x+map_bias)/resolution)
+                    sy = int((self.odom_y+map_bias)/resolution)
+                    gx = int((self.goal_x+map_bias)/resolution)
+                    gy = int((self.goal_y+map_bias)/resolution)
+                    
+
+                    
+                    def make_intgrid(data):
+                        data = (data + map_bias) / resolution
+                        return int(data)
+                    
+                    #### 장애물 define ###
+                    ox, oy = [], []
+                    ##1. 테두리 장애물 define ##
+                    for i in range(make_intgrid(-10), make_intgrid(10)):  # 북쪽   # [0~200]
+                        ox.append(i)
+                        oy.append(make_intgrid(10))
+                    for i in range(make_intgrid(-10), make_intgrid(10)):  # 동쪽
+                        ox.append(make_intgrid(10))
+                        oy.append(i)
+                    for i in range(make_intgrid(-10), make_intgrid(10)):  # 남쪽
+                        ox.append(i)
+                        oy.append(make_intgrid(-10))
+                    for i in range(make_intgrid(-10), make_intgrid(10)):  # 서쪽
+                        ox.append(0)
+                        oy.append(make_intgrid(-10))
+                        
+                    # 왼쪽사이드 장애물 (1)                       
+                    for i in range(make_intgrid(-10), make_intgrid(-9)):
+                        for j in range(make_intgrid(-5), make_intgrid(8)):
+                            ox.append(i)
+                            oy.append(j)
+                    # 왼쪽하단 w계단 장애물 (2)
+                    for i in range(make_intgrid(-10), make_intgrid(-1)):
+                        for j in range(make_intgrid(-10), make_intgrid(-5)):
+                            ox.append(i)
+                            oy.append(j)
+                    # 하단 길쭉이 장애물 (2-1)        
+                    for i in range(make_intgrid(-1), make_intgrid(10)):
+                        for j in range(make_intgrid(-10), make_intgrid(-9.7)):
+                            ox.append(i)
+                            oy.append(j)
+                    # 우측하단 장애물 랙3개 (3)
+                    for i in range(make_intgrid(2.2), make_intgrid(7.3)):
+                        for j in range(make_intgrid(-9.7), make_intgrid(-5.9)):
+                            ox.append(i)
+                            oy.append(j)
+                    # 왼쪽상단 팔레트 (4)
+                    for i in range(make_intgrid(-7.5), make_intgrid(0)):
+                        for j in range(make_intgrid(5.5), make_intgrid(7.5)):
+                            ox.append(i)
+                            oy.append(j)
+                    # 왼쪽 팔레트 (5)
+                    for i in range(make_intgrid(-9), make_intgrid(-4.6)):
+                        for j in range(make_intgrid(1.0), make_intgrid(2.8)):
+                            ox.append(i)
+                            oy.append(j)                            
+                    # 우측 팔레트 (6)
+                    for i in range(make_intgrid(5.2), make_intgrid(7.7)):
+                        for j in range(make_intgrid(0.7), make_intgrid(2.8)):
+                            ox.append(i)
+                            oy.append(j)                    
+                    # 우측상단 박스 5개 (7)
+                    for i in range(make_intgrid(2.5), make_intgrid(8.5)):
+                        for j in range(make_intgrid(5.5), make_intgrid(6.0)):
+                            ox.append(i)
+                            oy.append(j)
+                    # 컨트롤판넬 (8)
+                    for i in range(make_intgrid(1.7), make_intgrid(3.1)):
+                        for j in range(make_intgrid(0.8), make_intgrid(1.5)):
+                            ox.append(i)
+                            oy.append(j)
+                    # 필라스 (9,10,11)
+                    for i in range(make_intgrid(-4.2), make_intgrid(-3.6)):
+                        for j in range(make_intgrid(-2.6), make_intgrid(-2.1)):
+                            ox.append(i)
+                            oy.append(j)                            
+                    for i in range(make_intgrid(0.1), make_intgrid(0.6)):
+                        for j in range(make_intgrid(-2.6), make_intgrid(-2.1)):
+                            ox.append(i)
+                            oy.append(j)                            
+                    for i in range(make_intgrid(4.7), make_intgrid(5.3)):
+                        for j in range(make_intgrid(-2.6), make_intgrid(-2.1)):
+                            ox.append(i)
+                            oy.append(j)                            
+                    
+
+                    self.a_star = astar.pure_astar_RAL.AStarPlanner(ox, oy, grid_size, robot_radius)
+                    if PURE_GP:
+                        self.pedsim_agents_list = []  
+                    
+                    #print(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                    rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
+                    self.flow_map = flow_map 
+                    
+                    final_path = []
+                    for path in zip (rx, ry):
+                        final_path.append([path[0], path[1]])
+                    
+                    final_path = np.array(final_path)
+                    final_path = final_path / map_bias
+                    path = final_path
 
                 break
             except:
                 path = [[self.goal_x, self.goal_y]]
                 path = np.asarray(path)   # 221103
-                print('[reset]예외발생. path를 global_goal로 지정', path)
+                print('SCENARIO:',SCENARIO,'의 [reset]예외발생. path <<-- global_goal로 지정', path)
                 break
         
         self.path_i_prev = path
         self.path_i_rviz = path
         
         
-        # TODO sampling 방법에 대해 고려
-        #############################    
+        #################################
+        #### Waypoint Sampling Module ###
+        #################################    
         ############# 221010 고정된 5 사이즈의 path output    self.path_as_input
         self.path_as_input = []
         for i in range(self.path_as_input_no):
@@ -1348,22 +1461,16 @@ class GazeboEnv:
             elif len(path) == self.path_as_input_no:
                 self.path_as_input = path - 5.5
         if SCENARIO=='warehouse_RAL':   # 240205 for RA-L Rebuttal stage
-            ### TODO ### 위에 DWA보고 수정
             # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
             if len(path) < self.path_as_input_no:
-                #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
                 self.path_as_input[:len(path), :] = path-10.0
-            
-            #### 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
-            ###elif len(path) > self.path_as_input_no:   # 8>5
-            ###    self.path_as_input = path[-5:, :]-10.0
-                
-            # 221114
-            # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
+
+            # 만약 path가 더 길다면: 
             elif len(path) > self.path_as_input_no:   # 8>5
-                numbers = np.random.choice(range(0, len(path)), 5, replace = False)
-                for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
-                    self.path_as_input[i, :] = path[number, :] - 10.0
+                # 230127 패스중 5개를 uniform하게 샘플링
+                divdiv = int(len(path) / self.path_as_input_no)   # e.g. 13/5 = 2.6 --int--> 2
+                for i in range(self.path_as_input_no):
+                    self.path_as_input[i,:] = path[(i+1)*divdiv-1, :]-10.0
             
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
