@@ -48,7 +48,8 @@ PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 
 
 PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
-SCENARIO = 'DWA'    # TD3, warehouse, U, DWA
+#SCENARIO = 'DWA'    # TD3, warehouse, U, DWA, warehouse_RAL (240205 for rebuttal stage)
+SCENARIO = 'warehouse_RAL'    
 
 PURE_GP = False # 231020  pure astar planner(IS 및 social cost 미고려)
 #PURE_GP = True # SimpleGP 트리거
@@ -173,12 +174,60 @@ def check_pos_warehouse(x, y):   # 221102
         
     return goal_ok
 
+def check_pos_warehouse_RAL(x, y):   # 240205 RA-L Rebuttal stage
+    # Buffer 추가 240205
+    buffer_length = 0.3
+    goal_ok = True
+    # wall2
+    if -9.0+buffer_length > x > -1.0-buffer_length and -6.0+buffer_length > y > -10.0-buffer_length:
+        goal_ok = False
+    # wall3
+    if -9.0+buffer_length > x > -10.0-buffer_length and 9.0+buffer_length > y > -10.0-buffer_length:
+        goal_ok = False
+    # NW three pannels
+    if -0.0+buffer_length > x > -7-buffer_length and 7.3+buffer_length > y > 5.5-buffer_length:
+        goal_ok = False
+    # NW two pannels
+    if -8.8+buffer_length > x > -4.2-buffer_length and 3+buffer_length > y > 1-buffer_length:
+        goal_ok = False
+    # control panel
+    if 2.0701+0.4336+buffer_length > x > 2.0701-0.4336-buffer_length and 1.1622+0.3+buffer_length > y > 1.1622-0.3-buffer_length:
+        goal_ok = False
+    # rack1
+    if 7.35056+0.4222+buffer_length > x > 7.35056-0.4222-buffer_length and 1.7443+0.9779+buffer_length > y > 1.7443-0.9779-buffer_length:
+        goal_ok = False
+    # rack2
+    if 5.36795+0.4222+buffer_length > x > 5.36795-0.4222-buffer_length and 1.7443+0.9779+buffer_length > y > 1.7443-0.9779-buffer_length:
+        goal_ok = False
+    # rack3
+    if 7.001420+0.4222+buffer_length > x > 7.001420-0.4222-buffer_length and -7.646700+1.95581+buffer_length > y > -7.646700-1.95581-buffer_length:
+        goal_ok = False
+    # rack4
+    if 4.97338+0.4222+buffer_length > x > 4.97338-0.4222-buffer_length and -7.646700+1.95581+buffer_length > y > -7.646700-1.95581-buffer_length:
+        goal_ok = False
+    # rack5
+    if 2.669490+0.4222+buffer_length > x > 2.669490-0.4222-buffer_length and -7.646700+1.95581+buffer_length > y > -7.646700-1.95581-buffer_length:
+        goal_ok = False
+    # pole1
+    if 5.02174+0.245805+buffer_length > x > 5.02174-0.245805-buffer_length and -2.39478+0.245805+buffer_length > y > -2.39478-0.245805-buffer_length:
+        goal_ok = False
+    # pole2
+    if 0.470710+0.245805+buffer_length > x > 0.470710-0.245805-buffer_length and -2.39478+0.245805+buffer_length > y > -2.39478-0.245805-buffer_length:
+        goal_ok = False
+    # pole3
+    if -3.93786+0.245805+buffer_length > x > -3.93786-0.245805-buffer_length and -2.39478+0.245805+buffer_length > y > -2.39478-0.245805-buffer_length:
+        goal_ok = False
+    # 전체 지도 [-10, 10] 넘어가는 경우    # 221108
+    if x < -10 or x > 10 or y < -10 or y > 10:
+        goal_ok = False
+        
+    return goal_ok
+
 def check_pos_DWA(x, y):   # 230126
     # 221219 buffer 추가
     #buffer_length = 0.25
     buffer_length = 0.5
     goal_ok = True
-    #print('야')
     
     # 밖으로 나가는 것도 고려해야 함
     if x <= -5.5+buffer_length or x>= 5.5-buffer_length or y <= -5.5+buffer_length or y> 5.5-buffer_length:
@@ -434,7 +483,6 @@ class GazeboEnv:
             
             if PARTIAL_VIEW and SCENARIO=='DWA':   # partial view이고 dwa 환경일때
                 if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 3개 alive(ORIGINAL)
-                    
                 # Ablation study
                 ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5):      # CCTV 2개 (1,2))
                 ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1) or (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 2개 (1,3))
@@ -442,10 +490,11 @@ class GazeboEnv:
                 ####if (-5.5 <= x <= 0.0 and -5.5 <= y <= -1):      # CCTV 1개 alive (1번)
                 ####if (-1.5 <= x <= 0.0 and -5.0 <= y <= 2.5):     # CCTV 1개 alive (2번)
                 ####if (2.0 <= x <= 4.0 and -5.5 <= y <= 2.5):      # CCTV 1개 alive (3번)
-                
                     self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
-                    
                 # unlimited case는 if 삭제하고 아래줄 한칸 앞으로 땡기면 됨
+            if PARTIAL_VIEW and SCENARIO=='warehouse_RAL':   # 240205 for RA-L Rebuttal stage
+                if (-9 <= x <= 9.5 and -6.0 <= y <= -2.6) or (-9 <= x <= 0 and 2.8 <= y <= 5.5) or (-3.6 <= x <= 5 and -2.6 <= y <= 5.5):      # CCTV 3개 alive(ORIGINAL)
+                    self.pedsim_agents_list.append([x,y, vx, vy])
 
         #print('페드심 리스트: ', self.pedsim_agents_list)
             
@@ -669,8 +718,10 @@ class GazeboEnv:
                         final_path = np.array(final_path)
                         final_path = final_path / 10
                         path = final_path 
-                        
                         #path = astar.pure_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
+                    elif SCENARIO=='warehouse_RAL':
+                        ### TODO ###
+                        path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
                     self.path_i_rviz = path
                     break
                 except:
@@ -800,6 +851,24 @@ class GazeboEnv:
                 # 만약 크기 같다면: 
                 elif len(path) == self.path_as_input_no:
                     self.path_as_input = path - 5.5
+            if SCENARIO=='warehouse_RAL':   # 240205 for RA-L Rebuttal stage
+                ### TODO ### 위에 DWA보고 수정
+                # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+                if len(path) < self.path_as_input_no:
+                    #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
+                    self.path_as_input[:len(path), :] = path-10.0
+                
+                # 221114
+                # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
+                elif len(path) > self.path_as_input_no:   # 8>5
+                     # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
+                    numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                    for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                        self.path_as_input[i, :] = path[number, :] - 10.0
+                                            
+                # 만약 크기 같다면: 
+                elif len(path) == self.path_as_input_no:
+                    self.path_as_input = path - 10.0                    
 
             self.path_as_init = self.path_as_input
         ### TODO adaptiveavgpooling2D
@@ -947,6 +1016,10 @@ class GazeboEnv:
                 x = np.random.uniform(-4.5, 4.5)
                 y = np.random.uniform(-4.5, 4.5)
                 position_ok = check_pos_DWA(x, y)
+            elif SCENARIO=='warehouse_RAL':  # 240205
+                x = np.random.uniform(-9.5, 9.5)
+                y = np.random.uniform(-9.5, 9.5)
+                position_ok = check_pos_warehouse_RAL(x, y)
                 
         
         if debug:
@@ -1147,6 +1220,9 @@ class GazeboEnv:
                     path = final_path
                     
                     #path = astar.pure_astar.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list) 
+                elif SCENARIO=='warehouse_RAL':   # 240205
+                    ### TODO ###
+                    path = planner_warehouse.main(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.pedsim_agents_list)
 
                 break
             except:
@@ -1271,12 +1347,32 @@ class GazeboEnv:
             # 만약 크기 같다면: 
             elif len(path) == self.path_as_input_no:
                 self.path_as_input = path - 5.5
+        if SCENARIO=='warehouse_RAL':   # 240205 for RA-L Rebuttal stage
+            ### TODO ### 위에 DWA보고 수정
+            # 만약 path가 더 작다면: # 앞단의 패스 길이만큼으로 대치 (남는 뒷부분들은 init goals)
+            if len(path) < self.path_as_input_no:
+                #print(path.shape, self.path_as_input.shape)   # 8, 2  5, 2
+                self.path_as_input[:len(path), :] = path-10.0
+            
+            #### 만약 path가 더 길다면: # 패스의 뒤에 5개 부분으로 대치  (8, 2)   
+            ###elif len(path) > self.path_as_input_no:   # 8>5
+            ###    self.path_as_input = path[-5:, :]-10.0
+                
+            # 221114
+            # 만약 path가 더 길다면: # 패스중 5를 랜덤하게 샘플링 (https://jimmy-ai.tistory.com/287)      
+            elif len(path) > self.path_as_input_no:   # 8>5
+                numbers = np.random.choice(range(0, len(path)), 5, replace = False)
+                for i, number in enumerate(numbers): # e.g. [0, 4, 2, 3, 8]
+                    self.path_as_input[i, :] = path[number, :] - 10.0
+            
+            # 만약 크기 같다면: 
+            elif len(path) == self.path_as_input_no:
+                self.path_as_input = path - 10.0                
+
+
 
         self.path_as_init = copy.deepcopy(self.path_as_input)     # raw global path
         #print('[reset]path_as_init:',self.path_as_init)
-
-        
-        
         
         self.publish_markers([0.0, 0.0])
 
@@ -1346,6 +1442,8 @@ class GazeboEnv:
                 goal_ok = check_pos_U(self.goal_x, self.goal_y)
             elif SCENARIO=='DWA':
                 goal_ok = check_pos_DWA(self.goal_x, self.goal_y)
+            elif SCENARIO=='warehouse_RAL':   # 240205
+                goal_ok = check_pos_warehouse_RAL(self.goal_x, self.goal_y)
                 
 
     def random_box(self):
@@ -1435,6 +1533,9 @@ class GazeboEnv:
                     elif SCENARIO=='DWA':
                         marker7.pose.position.x = i/10 - 5.5
                         marker7.pose.position.y = j/10 - 5.5
+                    elif SCENARIO=='warehouse_RAL':   # 240205
+                        marker7.pose.position.x = i - 10
+                        marker7.pose.position.y = j - 10                     
                     #print([i,j],'의:',[marker7.pose.position.x,marker7.pose.position.y],marker7.pose.position.z)
                     marker7.pose.position.z = (self.flow_map[i][j] + 99)/198
 
@@ -1538,6 +1639,9 @@ class GazeboEnv:
             elif SCENARIO=='DWA':
                 marker4.pose.position.x = pose[0] - 5.5
                 marker4.pose.position.y = pose[1] - 5.5
+            elif SCENARIO=='warehouse_RAL':   # 240205
+                marker4.pose.position.x = pose[0] - 10
+                marker4.pose.position.y = pose[1] - 10
             marker4.pose.position.z = 0
 
             markerArray4.markers.append(marker4)
@@ -1927,6 +2031,11 @@ class GazeboEnv:
                     reliability_score = 1.0   # GT
                 else:
                     reliability_score = 0.2   # Partial view일경우 default로 invisible로 세팅
+            if PARTIAL_VIEW and SCENARIO=='warehouse_RAL':   # 240205
+                if -10 < path[1] < 0:
+                    reliability_score = 1.0
+                else:
+                    reliability_score = 0.2
    
             #2. 로봇 영역에 노드가 위치할 경우 (TODO)   
                      
