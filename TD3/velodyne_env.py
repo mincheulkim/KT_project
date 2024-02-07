@@ -47,7 +47,7 @@ DYNAMIC_GLOBAL = True  # 221003    # global path replanning과 관련
 #PATH_AS_INPUT = False # 221014      # false
 PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 결정
 
-PARTIAL_VIEW = True ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
+PARTIAL_VIEW = False ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
 #SCENARIO = 'DWA'    # TD3, warehouse, U, DWA, warehouse_RAL (240205 for rebuttal stage)
 SCENARIO = 'warehouse_RAL'    
@@ -186,11 +186,11 @@ def check_pos_warehouse_RAL(x, y):   # 240205 RA-L Rebuttal stage
         goal_ok = False
     elif -1-buffer_length < x < 10+buffer_length and -10-buffer_length < y < -9.7+buffer_length:
         goal_ok = False
-    elif 2.2-buffer_length < x < 7.3+buffer_length and -9.7-buffer_length < y < -5.9+buffer_length:
+    elif 2.2-buffer_length < x < 7.3+buffer_length and -10-buffer_length < y < -5.9+buffer_length:
         goal_ok = False
     elif -7.5-buffer_length < x < 0+buffer_length and 5.5-buffer_length < y < 7.5+buffer_length:
         goal_ok = False
-    elif -10 < x < -4.6+buffer_length and 1-buffer_length < y < 2.8+buffer_length:
+    elif -10-buffer_length < x < -4.6+buffer_length and 1-buffer_length < y < 2.8+buffer_length:
         goal_ok = False
     elif 5-buffer_length < x < 7.7+buffer_length and 0.7-buffer_length < y < 2.8+buffer_length:
         goal_ok = False
@@ -204,7 +204,7 @@ def check_pos_warehouse_RAL(x, y):   # 240205 RA-L Rebuttal stage
         goal_ok = False
     elif 4.7-buffer_length < x < 5.3+buffer_length and -2.6-buffer_length < y < -2.1+buffer_length:
         goal_ok = False    
-    elif x <= -9.5 or x >= 9.5 or y <= -9.5 or y >= 9.5:
+    elif x < -9.5 or x > 9.5 or y < -9.5 or y > 9.5:
         goal_ok = False
         
     return goal_ok
@@ -1043,10 +1043,14 @@ class GazeboEnv:
             ###y = 4.5
         
         if evaluate:
-            x = 2.5         #Holding
-            y = -4.5
-            #x = -4.5         #Holding
-            #y = 4.5
+            if SCENARIO=='warehouse_RAL':
+                x = 0
+                y = -9
+            else:
+                x = 2.5         #Holding
+                y = -4.5
+                #x = -4.5         #Holding
+                #y = 4.5
                 
         
                 
@@ -1071,10 +1075,14 @@ class GazeboEnv:
                 
                 
         if evaluate:
-            self.goal_x = 0    # holding
-            self.goal_y = 4.5
-            #self.goal_x = 3 
-            #self.goal_y = -4
+            if SCENARIO=='warehouse_RAL':
+                self.goal_x = 0
+                self.goal_y = 9
+            else:
+                self.goal_x = 0    # holding
+                self.goal_y = 4.5
+                #self.goal_x = 3 
+                #self.goal_y = -4
                 
                 
         #angle = np.random.uniform(-np.pi, np.pi)
@@ -1642,8 +1650,8 @@ class GazeboEnv:
                         marker7.pose.position.x = i/10 - 5.5
                         marker7.pose.position.y = j/10 - 5.5
                     elif SCENARIO=='warehouse_RAL':   # 240205
-                        marker7.pose.position.x = i - 10
-                        marker7.pose.position.y = j - 10                     
+                        marker7.pose.position.x = i/10 - 10
+                        marker7.pose.position.y = j/10 - 10                     
                     #print([i,j],'의:',[marker7.pose.position.x,marker7.pose.position.y],marker7.pose.position.z)
                     marker7.pose.position.z = (self.flow_map[i][j] + 99)/198
 

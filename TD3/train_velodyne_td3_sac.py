@@ -138,6 +138,8 @@ total_numsteps = 0
 updates = 0
 
 best_avg_reward = -999.0
+import ipdb; ipdb.set_trace()
+
 
 for i_episode in itertools.count(1):
     episode_reward = 0
