@@ -4,8 +4,8 @@
 <arg name="gui" value="false"/>
 
    <!-- Gazebo  -->
-  <!--include file="$(find multi_robot_scenario)/launch/empty_world.launch" /-->   <!--RA-L 리부털 전-->
-  <include file="$(find multi_robot_scenario)/launch/empty_world_warehouse.launch" />   <!--240205 RA-L 리부털 중-->
+  <include file="$(find multi_robot_scenario)/launch/empty_world.launch" />   <!--RA-L 리부털 전-->
+  <!--include file="$(find multi_robot_scenario)/launch/empty_world_warehouse.launch" /-->   <!--240205 RA-L 리부털 중-->
 
   <!-- Robot with diff drive -->
   <include file="$(find multi_robot_scenario)/launch/pioneer3dx.gazebo.launch">

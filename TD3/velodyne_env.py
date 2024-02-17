@@ -22,7 +22,8 @@ import numpy as np
 import rospy
 import sensor_msgs.point_cloud2 as pc2
 from gazebo_msgs.msg import ModelState, ModelStates
-from geometry_msgs.msg import Twist
+#from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Point   # 240214, final_goal output용
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import PointCloud2
 from squaternion import Quaternion
@@ -49,16 +50,19 @@ PATH_AS_INPUT = True # 221019      # waypoint(5개)를 input으로 쓸것인지 
 
 PARTIAL_VIEW = False ## 221114 TD3(아래쪽 절반), warehouse(아래쪽 절반) visible
 
-#SCENARIO = 'DWA'    # TD3, warehouse, U, DWA, warehouse_RAL (240205 for rebuttal stage)
-SCENARIO = 'warehouse_RAL'    
+SCENARIO = 'DWA'    # TD3, warehouse, U, DWA, warehouse_RAL (240205 for rebuttal stage)
+#SCENARIO = 'warehouse_RAL'    
 
 PURE_GP = False # 231020  pure astar planner(IS 및 social cost 미고려)
 #PURE_GP = True # SimpleGP 트리거
-time_interval = 20
+#time_interval = 20
+time_interval = 2
+
+viz_flow_map = True
 
 debug = False    # evaluate단에서 활성화할 시 시점과 종점을 대칭으로 생성해줌
 
-evaluate = False   # qual figure 용. True로 할시, 각 시나리오 별 정해진 위치 + robot, ped_traj.txt 루트에 생성
+evaluate = True   # qual figure 용. True로 할시, 각 시나리오 별 정해진 위치 + robot, ped_traj.txt 루트에 생성
 
 
 # Check if the random goal position is located on an obstacle and do not accept it if it is
@@ -363,6 +367,8 @@ class GazeboEnv:
             "/r1/odom", Odometry, self.odom_callback, queue_size=1
         )
         
+        self.final_goal_pub = rospy.Publisher("/final_goal", Point, queue_size=1)   # 240214   
+        
         self.bridge = CvBridge()
         self.rgb_image_size = [512, 512]
         ## TODO raw_image from CCTV1, CCTV2, or robot  
@@ -522,7 +528,12 @@ class GazeboEnv:
         vel_cmd = Twist()
         vel_cmd.linear.x = action[0]
         vel_cmd.angular.z = action[1]
-        self.vel_pub.publish(vel_cmd)   # the robot movement is executed by a ROS publisher        
+        self.vel_pub.publish(vel_cmd)   # the robot movement is executed by a ROS publisher      
+        
+        final_goal_step = Point()
+        final_goal_step.x = self.goal_x
+        final_goal_step.y = self.goal_y
+        self.final_goal_pub.publish(final_goal_step)    # 240214  
 
         rospy.wait_for_service("/gazebo/unpause_physics")
         try:
@@ -1047,16 +1058,19 @@ class GazeboEnv:
                 x = 0
                 y = -9
             else:
-                x = 2.5         #Holding
-                y = -4.5
-                #x = -4.5         #Holding
+                #x = 2.5         #Holding
+                #y = -4.5
+                #x = -4.5         #Circling
                 #y = 4.5
+                x = 4.5         #Holding RA-L Rebuttal
+                y = 4.5
                 
         
                 
                 
         # set a random goal in empty space in environment
-        self.change_goal()    # short-term 
+        #self.change_goal()    # short-term 
+        self.change_goal(x, y)    # 240212
         # randomly scatter boxes in the environment
         #self.random_box()   # 220919 dynamic obstacle 추가로 일단 해제
         
@@ -1081,8 +1095,10 @@ class GazeboEnv:
             else:
                 self.goal_x = 0    # holding
                 self.goal_y = 4.5
-                #self.goal_x = 3 
+                #self.goal_x = 3   # Circling
                 #self.goal_y = -4
+                self.goal_x = -1    # holding_RAL
+                self.goal_y = -4.5
                 
                 
         #angle = np.random.uniform(-np.pi, np.pi)
@@ -1536,7 +1552,8 @@ class GazeboEnv:
             
         return state
 
-    def change_goal(self):   # adaptive goal positioning
+    #def change_goal(self):   # adaptive goal positioning
+    def change_goal(self, x, y):   # 240212
         # Place a new goal and check if its location is not on one of the obstacles
         #if self.upper < 10:    # 5
         if self.upper < 5:  # 221108
@@ -1548,8 +1565,10 @@ class GazeboEnv:
         goal_ok = False
 
         while not goal_ok:
-            self.goal_x = self.odom_x + random.uniform(self.upper, self.lower)  
-            self.goal_y = self.odom_y + random.uniform(self.upper, self.lower) # [-5, 5] -> [-10, 10]
+            #self.goal_x = self.odom_x + random.uniform(self.upper, self.lower)  
+            #self.goal_y = self.odom_y + random.uniform(self.upper, self.lower) # [-5, 5] -> [-10, 10]
+            self.goal_x = x + random.uniform(self.upper, self.lower)  
+            self.goal_y = y + random.uniform(self.upper, self.lower) # [-5, 5] -> [-10, 10]
             if SCENARIO=='warehouse':
                 goal_ok = check_pos_warehouse(self.goal_x, self.goal_y)
             elif SCENARIO=='TD3': 
@@ -1597,69 +1616,69 @@ class GazeboEnv:
 
         
         # flow_map from pure_astar visualize
-        '''
-        markerArray7 = MarkerArray()
-        if self.flow_map is None:
-            pass
-        else:
-            #print('self.flow_map:',self.flow_map)
-            #print(self.flow_map.shape)
-            marker_id = 0
-            for i in range(self.flow_map.shape[0]):
-                for j in range(self.flow_map.shape[1]):
-                    marker7 = Marker()
-                    marker7.action = Marker.DELETE
-                    #marker7.lifetime = marker_lifetime
-                    marker7.id = marker_id #(i*10)+j
-                    #print(marker7.id)
-                    marker7.header.frame_id = "odom"
-                    marker7.type = marker7.CYLINDER
-                    marker7.action = marker7.ADD
-                    marker7.scale.x = 0.1
-                    marker7.scale.y = 0.1
-                    marker7.scale.z = 0.01
-                    marker7.color.a = 0.51
-                    marker7.color.g = 0.5
-                    marker7.color.b = 0.5
-                    #print(self.flow_map[i][j], self.flow_map[i][j] + 99, (self.flow_map[i][j] + 99)/198)
-                    if self.flow_map[i][j] == 0.0:
-                        marker7.color.r = 0.5
-                    else:
-                        ratio = self.flow_map[i][j] / 99
-                        #print('색깔:',self.flow_map[i][j])
-                        #marker7.color.r = (self.flow_map[i][j]+98)/198
-                        #print(i,'라티오:',ratio)
-                        marker7.color.r = ratio
-                        marker7.color.g = 1-ratio
-                        marker7.color.b = 0.0
+        if viz_flow_map:
+            markerArray7 = MarkerArray()
+            if self.flow_map is None:
+                pass
+            else:
+                #print('self.flow_map:',self.flow_map)
+                #print(self.flow_map.shape)
+                marker_id = 0
+                for i in range(self.flow_map.shape[0]):
+                    for j in range(self.flow_map.shape[1]):
+                        marker7 = Marker()
+                        marker7.action = Marker.DELETE
+                        #marker7.lifetime = marker_lifetime
+                        marker7.id = marker_id #(i*10)+j
+                        #print(marker7.id)
+                        marker7.header.frame_id = "odom"
+                        marker7.type = marker7.CYLINDER
+                        marker7.action = marker7.ADD
+                        marker7.scale.x = 0.1
+                        marker7.scale.y = 0.1
+                        marker7.scale.z = 0.01
+                        marker7.color.a = 0.51
+                        marker7.color.g = 0.5
+                        marker7.color.b = 0.5
+                        #print(self.flow_map[i][j], self.flow_map[i][j] + 99, (self.flow_map[i][j] + 99)/198)
+                        if self.flow_map[i][j] == 0.0:
+                            marker7.color.r = 0.5
+                        else:
+                            ratio = self.flow_map[i][j] / 99
+                            #print('색깔:',self.flow_map[i][j])
+                            #marker7.color.r = (self.flow_map[i][j]+98)/198
+                            #print(i,'라티오:',ratio)
+                            marker7.color.r = ratio
+                            marker7.color.g = 1-ratio
+                            marker7.color.b = 0.0
+                            
+                        #marker7.color.g = 0.8
+                        #marker7.color.b = 0.7
                         
-                    #marker7.color.g = 0.8
-                    #marker7.color.b = 0.7
-                    
-                    marker7.pose.orientation.w = 1.0
-                    if SCENARIO=='warehouse':
-                        marker7.pose.position.x = i - 10
-                        marker7.pose.position.y = j - 10 
-                    elif SCENARIO=='TD3':
-                        marker7.pose.position.x = i - 5.5
-                        marker7.pose.position.y = j - 5.5
-                    elif SCENARIO=='U':
-                        marker7.pose.position.x = i - 5.5
-                        marker7.pose.position.y = j - 5.5
-                    elif SCENARIO=='DWA':
-                        marker7.pose.position.x = i/10 - 5.5
-                        marker7.pose.position.y = j/10 - 5.5
-                    elif SCENARIO=='warehouse_RAL':   # 240205
-                        marker7.pose.position.x = i/10 - 10
-                        marker7.pose.position.y = j/10 - 10                     
-                    #print([i,j],'의:',[marker7.pose.position.x,marker7.pose.position.y],marker7.pose.position.z)
-                    marker7.pose.position.z = (self.flow_map[i][j] + 99)/198
+                        marker7.pose.orientation.w = 1.0
+                        if SCENARIO=='warehouse':
+                            marker7.pose.position.x = i - 10
+                            marker7.pose.position.y = j - 10 
+                        elif SCENARIO=='TD3':
+                            marker7.pose.position.x = i - 5.5
+                            marker7.pose.position.y = j - 5.5
+                        elif SCENARIO=='U':
+                            marker7.pose.position.x = i - 5.5
+                            marker7.pose.position.y = j - 5.5
+                        elif SCENARIO=='DWA':
+                            marker7.pose.position.x = i/10 - 5.5
+                            marker7.pose.position.y = j/10 - 5.5
+                        elif SCENARIO=='warehouse_RAL':   # 240205
+                            marker7.pose.position.x = i/10 - 10
+                            marker7.pose.position.y = j/10 - 10                     
+                        #print([i,j],'의:',[marker7.pose.position.x,marker7.pose.position.y],marker7.pose.position.z)
+                        marker7.pose.position.z = (self.flow_map[i][j] + 99)/198
 
-                    markerArray7.markers.append(marker7)
-                    marker_id += 1
+                        markerArray7.markers.append(marker7)
+                        marker_id += 1
 
-        self.publisher7.publish(markerArray7)
-        '''
+            self.publisher7.publish(markerArray7)
+        
         
         
         
