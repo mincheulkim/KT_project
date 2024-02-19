@@ -11,8 +11,6 @@ import copy
 import planner  # 220928
 import planner_warehouse  # 221102
 import planner_U  # 221117
-import planner_DWA
-import planner_astar # 230131
 import astar.pure_astar  # 230213
 import astar.pure_astar_RAL  # 240206
 from os import path
@@ -24,7 +22,7 @@ import dwa_pythonrobotics as dwa_pythonrobotics
 import numpy as np
 import rospy
 import sensor_msgs.point_cloud2 as pc2
-from gazebo_msgs.msg import ModelState, ModelStates
+from gazebo_msgs.msg import ModelState
 from gazebo_msgs.srv import GetModelState
 #from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Twist, Point   # 240214, final_goal output용
@@ -61,7 +59,7 @@ SCENARIO = 'DWA'    # TD3, warehouse, U, DWA, warehouse_RAL (240205 for rebuttal
 PURE_GP = False # 231020  pure astar planner(IS 및 social cost 미고려)
 #PURE_GP = True # SimpleGP 트리거
 #time_interval = 20
-time_interval = 2
+time_interval = 20
 
 viz_flow_map = False
 
@@ -375,7 +373,7 @@ class GazeboEnv:
         self.final_goal_pub = rospy.Publisher("/final_goal", Point, queue_size=1)   # 240214   
         
         ### PED_MAP 생성
-        self.ped_sub = rospy.Subscriber('/pedsim_visualizer/tracked_persons', TrackedPersons, self.ped_callback)
+        self.ped = rospy.Subscriber('/pedsim_visualizer/tracked_persons', TrackedPersons, self.ped_callback)
         self.get_state_service = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
         self.track_ped_pub = rospy.Publisher('/track_ped', TrackedPersons, queue_size=10)
         
@@ -391,7 +389,7 @@ class GazeboEnv:
         self.scan_tmp = np.zeros(180)
         self.scan_all_tmp = np.zeros(1080)
         # initialize ROS objects
-        self.ped_sub = rospy.Subscriber("/track_ped", TrackedPersons, self.ped_callback)
+        self.ped_sub = rospy.Subscriber("/track_ped", TrackedPersons, self.ped_callback_sub)
 #        self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
         self.scan_sub = rospy.Subscriber("/r1/front_laser/scan", LaserScan, self.scan_callback)
 #        self.goal_sub = rospy.Subscriber("/cnn_goal", Point, self.goal_callback)
@@ -401,12 +399,7 @@ class GazeboEnv:
 #        self.cnn_data_pub = rospy.Publisher('/cnn_data', CNN_data, queue_size=1, latch=False)
         # timer:
 
-        
-        self.bridge = CvBridge()
-        self.rgb_image_size = [512, 512]
-        ## TODO raw_image from CCTV1, CCTV2, or robot  
-        # ref: https://github.com/xie9187/Monocular-Obstacle-Avoidance/blob/master/D3QN/GazeboWorld.py
-        self.rgb_cctv1 = rospy.Subscriber("/cctv1/image_raw", Image, self.RGBImageCallBack)
+
         
         #220927 pedsim agent subscriber
         self.pedsim_agents = rospy.Subscriber("/pedsim_simulator/simulated_agents", AgentStates, self.actor_poses_callback)
@@ -418,7 +411,6 @@ class GazeboEnv:
         self.path_as_init = None
         self.flow_map = None
         
-        self.mht_peds = TrackedPersons()
         
 
     # Read velodyne pointcloud and turn it into distance data, then select the minimum value for each angle
@@ -441,11 +433,7 @@ class GazeboEnv:
 
     def odom_callback(self, od_data):
         self.last_odom = od_data
-        
-    # 220915 
-    # ref: https://github.com/xie9187/Monocular-Obstacle-Avoidance/blob/master/D3QN/GazeboWorld.py
-    def RGBImageCallBack(self, img):
-        self.rgb_image = img
+
         
     def get_robot_states(self):
         """
@@ -521,7 +509,7 @@ class GazeboEnv:
             # publish the pedestrains
             self.track_ped_pub.publish(tracked_peds)
 
-    def ped_callback(self, trackPed_msg):
+    def ped_callback_sub(self, trackPed_msg):
         # get the pedstrain's position:
         self.ped_pos_map_tmp = np.zeros((2,80,80))  # cartesian velocity map
         if(len(trackPed_msg.tracks) != 0):  # tracker results
@@ -653,30 +641,6 @@ class GazeboEnv:
         #print('페드심 리스트: ', self.pedsim_agents_list)
             
             
-    def GetRGBImageObservation(self):
-        try:
-            # self.camera_image is an ndarray with shape (h, w, c) -> (228, 304, 3)
-            cv_img = self.bridge.imgmsg_to_cv2(self.rgb_image, "bgr8")   # mono8, mono16, bgr8, rgb8
-            #cv_img = self.bridge.imgmsg_to_cv2(self.rgb_image, desired_encoding='passthrough')   # http://wiki.ros.org/cv_bridge/Tutorials/ConvertingBetweenROSImagesAndOpenCVImagesPython
-            # imgmsg data -> opencv
-            # "bge8": CV_8UC3, color image with blue-green-red color order
-        except Exception as e:
-            raise e
-        # resize
-        dim = (self.rgb_image_size[0], self.rgb_image_size[1])
-        cv_resized_img = cv2.resize(cv_img, dim, interpolation = cv2.INTER_AREA)
-        # 밑에는 getDepthImage에서 가져온 파트
-        
-        
-        # convert Opencv2 image to ROS image message and publish
-        try:
-            resized_img = self.bridge.cv2_to_imgmsg(cv_resized_img, "bgr8")
-        except Exception as e:
-            raise e
-        #self.resized_rgb_img.publish(resized_img)   # 220915 주석 처리. resized된 이미지를 publish
-        return(cv_resized_img)
-
-
     # Perform an action and read a new state
     def step(self, action, episode_steps):        
         target = False
@@ -1193,43 +1157,6 @@ class GazeboEnv:
 #        print('페드포스:',self.ped_pos, '스캔:',self.scan, '골:',self.goal)
         return self.observation    
   
-    def IDR_checker(self):
-        
-        # for 사람 in 사람s
-        # cal. L2 dist btwn robot and human
-        IDR = 0.
-        SD = 999.
-        robot_p_x = self.last_odom.pose.pose.position.x
-        robot_p_y = self.last_odom.pose.pose.position.y
-        
-        if self.pedsim_agents_list_oracle is not None:
-            for actor in self.pedsim_agents_list_oracle:
-                dist_robot_h = np.linalg.norm([actor[0] - robot_p_x, actor[1] - robot_p_y])
-                #1. 매 스탭마다, 현재 로봇이 IS 안에 있는지 체크. 일단은 fixed된 1m
-                if dist_robot_h <= 1.0:
-                    IDR = 1.
-                #2. cal. L2 dist btwn robot and human. 젤 작은거 return
-                if dist_robot_h < SD:
-                    SD = dist_robot_h
-        return IDR, SD
-        
-        '''
-        for actor in actors.agent_states:
-            actor_id = str( actor.id )
-            actor_pose = actor.pose
-            #print("Spawning model: actor_id = %s", actor_id)
-            x= actor_pose.position.x
-            y= actor_pose.position.y
-            #print(actor_id, x, y)
-            actor_twist = actor.twist   # 230131
-            vx = actor_twist.linear.x
-            vy = actor_twist.linear.y
-            #print(actor_id, vx, vy)
-        '''
-        
-        return robot_p_x, robot_p_y
-        
-        #2. 매 스탭마다, 현재 로봇과 사람의 가장 가까운 거리 체크
 
     def reset(self):
         time.sleep(TIME_DELTA)  # 필요?

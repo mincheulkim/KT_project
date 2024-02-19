@@ -262,7 +262,8 @@ for i_episode in itertools.count(1):
             episodes = 100  # for fase evaluate
             #episodes = 200  # 230224
         else:
-            episodes = 20   # for training
+            #episodes = 20   # for training
+            episodes = 10   # for DRLVO
         print('Validating... Evaluate:',evaluate)
         for i in range(episodes):
             state = env.reset()    
