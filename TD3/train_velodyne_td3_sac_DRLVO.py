@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from replay_memory import ReplayMemory
 from velodyne_env_DRLVO import GazeboEnv
-from sac import SAC, SAC_PATH, SAC_DRLVO
+from sac import SAC_DRLVO
 
 import itertools
 
@@ -25,14 +25,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # cuda or
 seed = 123456  # Random seed number    
 #seed = 4  # Random seed number    # 221007
 max_ep = 500  # maximum number of steps per episode
-#batch_size = 40  # Size of the mini-batch
-#batch_size = 256  # 221007
-batch_size = 512  # 221007
-#batch_size = 1024  # 230209
+
 #discount = 0.99999  # Discount factor to calculate the discounted future reward (should be close to 1)  
 discount = 0.99   # 221007    # discount factor for reward (default: 0.99)
 tau = 0.005  # Soft target update variable (should be close to 0)    # target smoothing coefficient(τ) (default: 0.005)
-buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "Ours"  # name of the file to store the policy
 save_model = True  # Weather to save the model or not
 random_near_obstacle = False  # To take random actions near obstacles or not
@@ -59,8 +55,8 @@ parser.add_argument('--automatic_entropy_tuning', type=bool, default=True, metav
                     help='Automaically adjust α (default: False)')
 parser.add_argument('--seed', type=int, default=123456, metavar='N',
                     help='random seed (default: 123456)')
-#parser.add_argument('--batch_size', type=int, default=256, metavar='N',
-parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
+parser.add_argument('--batch_size', type=int, default=16, metavar='N',
+#parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
                     help='batch size (default: 256)')
 #parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
 parser.add_argument('--num_steps', type=int, default=100000001, metavar='N',
@@ -69,8 +65,8 @@ parser.add_argument('--hidden_size', type=int, default=256, metavar='N',
                     help='hidden size (default: 256)')
 parser.add_argument('--updates_per_step', type=int, default=1, metavar='N',
                     help='model updates per simulator step (default: 1)')
-#parser.add_argument('--start_steps', type=int, default=1000, metavar='N',    # RALrebuttal 전 = 1000, DRLVO debug 용 100
-parser.add_argument('--start_steps', type=int, default=100, metavar='N',    # RALrebuttal 전 = 1000, DRLVO debug 용 100
+parser.add_argument('--start_steps', type=int, default=1000, metavar='N',    # RALrebuttal 전 = 1000, DRLVO debug 용 100
+#parser.add_argument('--start_steps', type=int, default=100, metavar='N',    # RALrebuttal 전 = 1000, DRLVO debug 용 100
                     help='Steps sampling random actions (default: 10000)')
 parser.add_argument('--target_update_interval', type=int, default=1, metavar='N',
                     help='Value target update per no. of updates per step (default: 1)')

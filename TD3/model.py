@@ -628,8 +628,10 @@ class QNetwork_DRLVO(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
+        '''
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
+        '''
         
         self.conv2_2 = nn.Sequential(
             nn.Conv2d(in_channels=256, out_channels=128, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
@@ -649,6 +651,7 @@ class QNetwork_DRLVO(nn.Module):
         )
         self.relu2 = nn.ReLU(inplace=True)
 
+        '''
         self.conv3_2 = nn.Sequential(
             nn.Conv2d(in_channels=512, out_channels=256, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
             nn.BatchNorm2d(256),
@@ -661,11 +664,14 @@ class QNetwork_DRLVO(nn.Module):
             nn.Conv2d(in_channels=256, out_channels=512, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
             nn.BatchNorm2d(512)
         )
+
         self.downsample3 = nn.Sequential(
             nn.Conv2d(in_channels=64, out_channels=512, kernel_size=(1, 1), stride=(4,4), padding=(0, 0)),
             nn.BatchNorm2d(512)
         )
+        '''                
         self.relu3 = nn.ReLU(inplace=True)
+
 
         # self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
         #                               dilate=replace_stride_with_dilation[2])
@@ -680,8 +686,10 @@ class QNetwork_DRLVO(nn.Module):
         self.layer1_2 = self._make_layer(block, 64, layers[0])
         self.layer2_2 = self._make_layer(block, 128, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
+        '''
         self.layer3_2 = self._make_layer(block, 256, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
+        '''
         
         self.conv2_2_2 = nn.Sequential(
             nn.Conv2d(in_channels=256, out_channels=128, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
@@ -701,6 +709,7 @@ class QNetwork_DRLVO(nn.Module):
         )
         self.relu2_2 = nn.ReLU(inplace=True)
 
+        '''
         self.conv3_2_2 = nn.Sequential(
             nn.Conv2d(in_channels=512, out_channels=256, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
             nn.BatchNorm2d(256),
@@ -713,11 +722,14 @@ class QNetwork_DRLVO(nn.Module):
             nn.Conv2d(in_channels=256, out_channels=512, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
             nn.BatchNorm2d(512)
         )
+
         self.downsample3_2 = nn.Sequential(
             nn.Conv2d(in_channels=64, out_channels=512, kernel_size=(1, 1), stride=(4,4), padding=(0, 0)),
             nn.BatchNorm2d(512)
         )
+        '''                
         self.relu3_2 = nn.ReLU(inplace=True)
+
 
         # self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
         #                               dilate=replace_stride_with_dilation[2])
@@ -744,10 +756,10 @@ class QNetwork_DRLVO(nn.Module):
                     nn.init.constant_(m.bn3.weight, 0)                
 
 
-        self.linear1 = nn.Linear(512+2+2, hidden_dim)
+        self.linear1 = nn.Linear(256+2+2, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         self.linear3 = nn.Linear(hidden_dim, 1)
-        self.linear4 = nn.Linear(512+2+2, hidden_dim)
+        self.linear4 = nn.Linear(256+2+2, hidden_dim)
         self.linear5 = nn.Linear(hidden_dim, hidden_dim)
         self.linear6 = nn.Linear(hidden_dim, 1)        
         
@@ -816,8 +828,6 @@ class QNetwork_DRLVO(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        identity3 = self.downsample3(x)
-
         x = self.layer1(x)
 
         identity2 = self.downsample2(x)
@@ -828,13 +838,13 @@ class QNetwork_DRLVO(nn.Module):
         x += identity2
         x = self.relu2(x)
 
-
+        '''
         x = self.layer3(x)
-        # x = self.layer4(x)
 
         x = self.conv3_2(x)
         x += identity3
         x = self.relu3(x)
+        '''
 
         x = self.avgpool(x)
         fusion_out = torch.flatten(x, 1)
@@ -860,8 +870,6 @@ class QNetwork_DRLVO(nn.Module):
         x_2 = self.relu_2(x_2)
         x_2 = self.maxpool_2(x_2)
 
-        identity3_2 = self.downsample3_2(x_2)
-
         x_2 = self.layer1_2(x_2)
 
         identity2_2 = self.downsample2_2(x_2)
@@ -872,12 +880,13 @@ class QNetwork_DRLVO(nn.Module):
         x_2 += identity2_2
         x_2 = self.relu2_2(x_2)
 
-
-        x_2 = self.layer3(x_2)
+        '''
+        x_2 = self.layer3_2(x_2)
 
         x_2 = self.conv3_2_2(x_2)
         x_2 += identity3_2
         x_2 = self.relu3_2(x_2)
+        '''
 
         x_2 = self.avgpool_2(x_2)
         fusion_out_2 = torch.flatten(x_2, 1)
@@ -898,7 +907,7 @@ class QNetwork_DRLVO(nn.Module):
         x2 = self.linear6(x2)
 
 
-        print('x1:',x1, 'x2:',x2)
+        #print('x1:',x1, 'x2:',x2)
         return x1, x2
 
 
@@ -950,8 +959,10 @@ class GaussianPolicy_DRLVO(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
+        '''
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
+        '''
         
         self.conv2_2 = nn.Sequential(
             nn.Conv2d(in_channels=256, out_channels=128, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
@@ -970,7 +981,7 @@ class GaussianPolicy_DRLVO(nn.Module):
             nn.BatchNorm2d(256)
         )
         self.relu2 = nn.ReLU(inplace=True)
-
+        '''
         self.conv3_2 = nn.Sequential(
             nn.Conv2d(in_channels=512, out_channels=256, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
             nn.BatchNorm2d(256),
@@ -983,10 +994,12 @@ class GaussianPolicy_DRLVO(nn.Module):
             nn.Conv2d(in_channels=256, out_channels=512, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
             nn.BatchNorm2d(512)
         )
+
         self.downsample3 = nn.Sequential(
             nn.Conv2d(in_channels=64, out_channels=512, kernel_size=(1, 1), stride=(4,4), padding=(0, 0)),
             nn.BatchNorm2d(512)
         )
+        '''                
         self.relu3 = nn.ReLU(inplace=True)
 
         # self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
@@ -1014,7 +1027,7 @@ class GaussianPolicy_DRLVO(nn.Module):
                     nn.init.constant_(m.bn3.weight, 0)                
 
 
-        self.linear1 = nn.Linear(512+2, hidden_dim)
+        self.linear1 = nn.Linear(256+2, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         
         self.mean_linear = nn.Linear(hidden_dim, num_actions)
@@ -1075,8 +1088,6 @@ class GaussianPolicy_DRLVO(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        identity3 = self.downsample3(x)
-
         x = self.layer1(x)
 
         identity2 = self.downsample2(x)
@@ -1087,16 +1098,16 @@ class GaussianPolicy_DRLVO(nn.Module):
         x += identity2
         x = self.relu2(x)
 
-
+        '''
         x = self.layer3(x)
-        # x = self.layer4(x)
 
         x = self.conv3_2(x)
         x += identity3
         x = self.relu3(x)
+        '''
 
         x = self.avgpool(x)
-        fusion_out = torch.flatten(x, 1)
+        fusion_out = torch.flatten(x, 1)   # 512
         ###### End of fusion net ######
         
         ###### 2.Start of goal net #######
@@ -1105,9 +1116,10 @@ class GaussianPolicy_DRLVO(nn.Module):
         ###### End of goal net #######        
         
         # 3. Combine
-        state = torch.cat((fusion_out, goal_out), dim=-1)    # 512 + 2 = 514
+        state = torch.cat((fusion_out, goal_out), dim=-1)    # 512 + 2 = 514   -> 경량화 256
 
         # 4. Original code                
+#        print('state shape:',state.shape)
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
 
@@ -1133,4 +1145,4 @@ class GaussianPolicy_DRLVO(nn.Module):
     def to(self, device):
         self.action_scale = self.action_scale.to(device)
         self.action_bias = self.action_bias.to(device)
-        return super(GaussianPolicy_DRLVO, self).to(device)
+        return super(GaussianPolicy_DRLVO, self).to(device)      
