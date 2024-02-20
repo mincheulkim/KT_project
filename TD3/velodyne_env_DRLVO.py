@@ -1156,6 +1156,44 @@ class GazeboEnv:
         self.observation = np.concatenate((self.ped_pos, self.scan, self.goal), axis=None) #list(itertools.chain(self.ped_pos, self.scan, self.goal))
 #        print('페드포스:',self.ped_pos, '스캔:',self.scan, '골:',self.goal)
         return self.observation    
+
+    def IDR_checker(self):
+        
+        # for 사람 in 사람s
+        # cal. L2 dist btwn robot and human
+        IDR = 0.
+        SD = 999.
+        robot_p_x = self.last_odom.pose.pose.position.x
+        robot_p_y = self.last_odom.pose.pose.position.y
+        
+        if self.pedsim_agents_list_oracle is not None:
+            for actor in self.pedsim_agents_list_oracle:
+                dist_robot_h = np.linalg.norm([actor[0] - robot_p_x, actor[1] - robot_p_y])
+                #1. 매 스탭마다, 현재 로봇이 IS 안에 있는지 체크. 일단은 fixed된 1m
+                if dist_robot_h <= 1.0:
+                    IDR = 1.
+                #2. cal. L2 dist btwn robot and human. 젤 작은거 return
+                if dist_robot_h < SD:
+                    SD = dist_robot_h
+        return IDR, SD
+        
+        '''
+        for actor in actors.agent_states:
+            actor_id = str( actor.id )
+            actor_pose = actor.pose
+            #print("Spawning model: actor_id = %s", actor_id)
+            x= actor_pose.position.x
+            y= actor_pose.position.y
+            #print(actor_id, x, y)
+            actor_twist = actor.twist   # 230131
+            vx = actor_twist.linear.x
+            vy = actor_twist.linear.y
+            #print(actor_id, vx, vy)
+        '''
+        
+        return robot_p_x, robot_p_y
+        
+        #2. 매 스탭마다, 현재 로봇과 사람의 가장 가까운 거리 체크
   
 
     def reset(self):
