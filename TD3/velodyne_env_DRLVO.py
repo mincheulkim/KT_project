@@ -1093,7 +1093,8 @@ class GazeboEnv:
         # DRL-VO Implication, 
         # 1. State 받아오기
         state_DRLVO = self._get_observation()
-        reward_DRLVO = self.get_reward_path_230206_VO(target, collision, action, self.goal_x, self.goal_y, self.pedsim_agents_list)
+        #reward_DRLVO = self.get_reward_path_230206_VO(target, collision, action, self.goal_x, self.goal_y, self.pedsim_agents_list)
+        reward_DRLVO = self.get_reward_path_230206_VO(target, collision, action, self.goal_x, self.goal_y, skew_x, skew_y, self.pedsim_agents_list)
         # 2. Reward 받아고기
         # 3. Done 받아오기
 
@@ -2332,13 +2333,12 @@ class GazeboEnv:
         return R_t    
     
     @staticmethod     
-    def get_reward_path_230206_VO(target, collision, action, goal_x, goal_y, mht_peds):
+    #def get_reward_path_230206_VO(target, collision, action, goal_x, goal_y, mht_peds):
+    def get_reward_path_230206_VO(target, collision, action, goal_x, goal_y, skew_x, skew_y, mht_peds):
         ## 221101 reward design main idea: R_guldering 참조
         R_g = 0.0
         R_c = 0.0
-        R_p = 0.0
         R_t = 0.0  # total
-        R_a = 0.0
         R_th = 0.0
         w_thresh = 1
         r_rotation = -0.1
@@ -2350,14 +2350,11 @@ class GazeboEnv:
         # 2. Collision
         if collision:
             R_c = -100
-        # 3. Angular
-        if(abs(action[1]) > w_thresh):
-            reward = abs(action[1]) * r_rotation
-        else:
-            reward = 0.0   
+
         #. THETA REWARD
         # prefer goal theta:
-        theta_pre = np.arctan2(goal_y, goal_x)
+        #theta_pre = np.arctan2(goal_y, goal_x)
+        theta_pre = np.arctan2(skew_y, skew_x)   # 240220
         d_theta = theta_pre
 
         # get the pedstrain's position:
@@ -2400,7 +2397,7 @@ class GazeboEnv:
 
         #print(R_th, mht_peds)
         # total
-        R_t = R_g + R_c + R_a + R_t + R_th
+        R_t = R_g + R_c + R_t + R_th
         return R_t    
 
 
