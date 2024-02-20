@@ -762,7 +762,7 @@ class GazeboEnv:
         #print('웨이포인트:',self.path_as_input)
         #print('리얼리비티:',reliability_score)
 
-        
+        '''
         #if PATH_AS_INPUT:
         if self.sac_path:
             #reward = self.get_reward_path(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y)
@@ -776,7 +776,7 @@ class GazeboEnv:
             #reward = self.get_reward(target, collision, action, min_laser)
             # 230227 pureDRL
             reward = self.get_reward_path_230206_pureDRL(target, collision, action, min_laser, self.odom_x, self.odom_y, self.path_as_input, self.goal_x, self.goal_y, self.pre_distance, self.distance, self.pre_odom_x, self.pre_odom_y)
-      
+        '''
         
         #220928 path 생성
         # 정적 생성(option 1)
@@ -1094,7 +1094,7 @@ class GazeboEnv:
         # 1. State 받아오기
         state_DRLVO = self._get_observation()
         #reward_DRLVO = self.get_reward_path_230206_VO(target, collision, action, self.goal_x, self.goal_y, self.pedsim_agents_list)
-        reward_DRLVO = self.get_reward_path_230206_VO(target, collision, action, self.goal_x, self.goal_y, skew_x, skew_y, self.pedsim_agents_list)
+        reward_DRLVO = self.get_reward_path_230206_VO(target, collision, action, self.goal_x, self.goal_y, skew_x, skew_y, self.pre_distance, self.distance, laser_state, self.pedsim_agents_list)
         # 2. Reward 받아고기
         # 3. Done 받아오기
 
@@ -2334,29 +2334,42 @@ class GazeboEnv:
     
     @staticmethod     
     #def get_reward_path_230206_VO(target, collision, action, goal_x, goal_y, mht_peds):
-    def get_reward_path_230206_VO(target, collision, action, goal_x, goal_y, skew_x, skew_y, mht_peds):
+    def get_reward_path_230206_VO(target, collision, action, goal_x, goal_y, skew_x, skew_y, pre_dist, dist, laser_state, mht_peds):
         ## 221101 reward design main idea: R_guldering 참조
         R_g = 0.0
         R_c = 0.0
         R_t = 0.0  # total
         R_th = 0.0
+        R_p = 0.0
         w_thresh = 1
         r_rotation = -0.1
+        r_scan = -0.2
         r_angle = 0.6
         angle_thresh = np.pi/6
+        
+        ls = np.array(laser_state[0])
+        min_scan_dist = np.amin(ls[ls!=0])
+        
         # 1. Success
         if target:
             R_g = 100.0
         # 2. Collision
         if collision:
             R_c = -100
-
+        elif(min_scan_dist < 3*COLLISION_DIST):
+            R_c = r_scan * (3*COLLISION_DIST - min_scan_dist)
+        else:
+            R_c = 0.0
+        R_p = pre_dist - dist
         #. THETA REWARD
         # prefer goal theta:
         #theta_pre = np.arctan2(goal_y, goal_x)
         theta_pre = np.arctan2(skew_y, skew_x)   # 240220
         d_theta = theta_pre
+        #print('레이저 스테이트:',laser_state)
 
+        #print('최소 스캔 거리:',min_scan_dist)
+        
         # get the pedstrain's position:
         if(mht_peds != None):  # tracker results
             d_theta = np.pi/2 #theta_pre
@@ -2397,7 +2410,7 @@ class GazeboEnv:
 
         #print(R_th, mht_peds)
         # total
-        R_t = R_g + R_c + R_t + R_th
+        R_t = R_g + R_p + R_c + R_th
         return R_t    
 
 
