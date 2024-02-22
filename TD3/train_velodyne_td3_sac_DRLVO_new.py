@@ -11,8 +11,8 @@ from numpy import inf
 from torch.utils.tensorboard import SummaryWriter
 
 from replay_memory import ReplayMemory
-from velodyne_env import GazeboEnv
-from sac import SAC, SAC_PATH
+from velodyne_env_DRLVO_new import GazeboEnv
+from sac import SAC_DRLVO_new
 
 import itertools
 
@@ -25,18 +25,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # cuda or
 seed = 123456  # Random seed number    
 #seed = 4  # Random seed number    # 221007
 max_ep = 500  # maximum number of steps per episode
-#max_ep = 1000  # maximum number of steps per episode
-#batch_size = 40  # Size of the mini-batch
-#batch_size = 256  # 221007
-batch_size = 512  # 221007
-#batch_size = 1024  # 230209
+
 #discount = 0.99999  # Discount factor to calculate the discounted future reward (should be close to 1)  
 discount = 0.99   # 221007    # discount factor for reward (default: 0.99)
 tau = 0.005  # Soft target update variable (should be close to 0)    # target smoothing coefficient(τ) (default: 0.005)
-buffer_size = 1e6  # Maximum size of the buffer   # 1000000  as 100k
 file_name = "Ours"  # name of the file to store the policy
-#save_model = True  # Weather to save the model or not
-save_model = False  # Weather to save the model or not
+save_model = True  # Weather to save the model or not
 random_near_obstacle = False  # To take random actions near obstacles or not
 save_interval = 200
 
@@ -61,8 +55,8 @@ parser.add_argument('--automatic_entropy_tuning', type=bool, default=True, metav
                     help='Automaically adjust α (default: False)')
 parser.add_argument('--seed', type=int, default=123456, metavar='N',
                     help='random seed (default: 123456)')
-#parser.add_argument('--batch_size', type=int, default=256, metavar='N',
-parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
+parser.add_argument('--batch_size', type=int, default=32, metavar='N',
+#parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
                     help='batch size (default: 256)')
 #parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
 parser.add_argument('--num_steps', type=int, default=100000001, metavar='N',
@@ -71,7 +65,8 @@ parser.add_argument('--hidden_size', type=int, default=256, metavar='N',
                     help='hidden size (default: 256)')
 parser.add_argument('--updates_per_step', type=int, default=1, metavar='N',
                     help='model updates per simulator step (default: 1)')
-parser.add_argument('--start_steps', type=int, default=1000, metavar='N',
+parser.add_argument('--start_steps', type=int, default=1000, metavar='N',    # RALrebuttal 전 = 1000, DRLVO debug 용 100
+#parser.add_argument('--start_steps', type=int, default=100, metavar='N',    # RALrebuttal 전 = 1000, DRLVO debug 용 100
                     help='Steps sampling random actions (default: 10000)')
 parser.add_argument('--target_update_interval', type=int, default=1, metavar='N',
                     help='Value target update per no. of updates per step (default: 1)')
@@ -94,13 +89,13 @@ writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().str
 # Create the training environment
 #### 파라미터 ####
 # 1. 모델 불러오기(evaluate용 또는 이어서 학습하기)
-load_model = True  # Weather to load a stored model   
+#load_model = True  # Weather to load a stored model   
+load_model = False  # Weather to load a stored model   
 # 2. SAC 또는 SAC_PATH
-PATH_AS_INPUT = True  # sac path
-#PATH_AS_INPUT = False  # 폴스 (pure DRL) local 230214
+#PATH_AS_INPUT = True  # sac path
+PATH_AS_INPUT = False  # 폴스 (pure DRL) local 230214
 # 3. evaluate할 건지
-#evaluate = False
-evaluate = True
+evaluate = False
 
 environment_dim = 20
 robot_dim = 4
@@ -117,10 +112,12 @@ action_bound = [[0, -1], [1, 1]]
 action_bound = spaces.Box(low=np.array([0.0, -1.0]), high=np.array([1.0, 1.0]), dtype=np.float32)
 
 if PATH_AS_INPUT:
-    state_dim = environment_dim + robot_dim + 10 # (20 + 4 + 10 (waypoint))
-    agent = SAC_PATH(state_dim, action_bound, args) 
+    #state_dim = environment_dim + robot_dim + 10 # (20 + 4 + 10 (waypoint))
+    #agent = SAC_PATH(state_dim, action_bound, args) 
+    print('TODO')
 else:
-    agent = SAC(state_dim, action_bound, args)
+    #agent = SAC(state_dim, action_bound, args)
+    agent = SAC_DRLVO_new(state_dim, action_bound, args)
 print('agent=:',agent)
 
 
@@ -148,7 +145,7 @@ for i_episode in itertools.count(1):
     episode_reward = 0
     episode_steps = 0
     done = False
-    state = env.reset()
+    state = env.reset()   # state.shape = 19202 = 19200 + 2
 
     while not done:
         if args.start_steps > total_numsteps:    # start_steps = 10000
@@ -219,7 +216,7 @@ for i_episode in itertools.count(1):
 
         state = next_state
         
-        if episode_steps > max_ep+1:  # 221201
+        if episode_steps > 501:  # 221201
             print('강제 break')
             break
         
@@ -255,7 +252,6 @@ for i_episode in itertools.count(1):
         avg_reward = 0.
         avg_episode_time = 0.  # 221109
         avg_episode_length = 0. # 221222
-        avg_episode_jerk = 0.0 # 240222
         success_i=0
         collision_i=0
         timeout_i = 0
@@ -266,14 +262,14 @@ for i_episode in itertools.count(1):
             episodes = 100  # for fase evaluate
             #episodes = 200  # 230224
         else:
-            episodes = 20   # for training
+            #episodes = 20   # for training
+            episodes = 10   # for DRLVO
         print('Validating... Evaluate:',evaluate)
         for i in range(episodes):
             state = env.reset()    
             episode_reward = 0
             episode_time = 0    # 221109            
             episode_length = 0
-            episode_jerk = 0
             done = False
             flag = 0
             episode_ITR = 0
@@ -293,7 +289,6 @@ for i_episode in itertools.count(1):
                 episode_reward += reward
                 episode_time += 1
                 episode_length += a_in[0]  # 221225 linear_v를 이동거리로 계산
-                episode_jerk += abs(a_in[1])  # 240222
                 
                 # 230828 Social metric add
                 IDR_i, SD_i = env.IDR_checker()
@@ -304,18 +299,17 @@ for i_episode in itertools.count(1):
                 state = next_state
                 flag += 1
                 
-                if flag > max_ep+1:
+                if flag > 501:
                     break
             avg_reward += episode_reward
             status = 'None'
-            if flag > max_ep+1:
+            if flag > 501:
                 status = 'Timeout'
                 timeout_i += 1
             elif done and target:
                 status = 'Success'
                 avg_episode_time += episode_time  # 221109
                 avg_episode_length += episode_length
-                avg_episode_jerk += episode_jerk
                 success_i += 1
             elif done:
                 status = 'Collision'
@@ -328,14 +322,13 @@ for i_episode in itertools.count(1):
         if success_i != 0:
             avg_episode_time /= success_i  # 221109   # episodes로 나누는거 대신 성공한 에피소드로 나누기
             avg_episode_length /= success_i
-            avg_episode_jerk /= success_i
 
             #if :  # 230828 ITR: 해당 에피소드에서 침범횟수 / avg_episode_time
             
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)
 
         print("----------------------------------------")
-        print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel time: {}, Avg. Travel length: {}, , Avg. Travel jerk: {}".format(episodes, round(avg_reward, 2), round(avg_episode_time, 2), round(avg_episode_length, 2), round(avg_episode_jerk, 2)))  # 221109
+        print("Test Episodes: {}, Avg. Reward: {}, Avg. Travel time: {}, Avg. Travel length: {}".format(episodes, round(avg_reward, 2), round(avg_episode_time, 2), round(avg_episode_length, 2)))  # 221109
         print('SR:',success_i/episodes, 'CR:',collision_i/episodes, 'TO:',timeout_i/episodes)
         print("avg.IDR: ", avg_episode_IDR / episodes, 'avg.SD: ', avg_episode_SD / episodes)   # 230828 added
 

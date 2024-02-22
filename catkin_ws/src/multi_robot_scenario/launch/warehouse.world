@@ -225,6 +225,48 @@
             </friction>
           </surface>
         </collision>
+        <collision name='wall_South'>
+          <pose frame=''>0.0 -10.0 3.48855 0 -0 0</pose>
+          <geometry>
+            <box>
+              <size>20.0 0.2 6.97771</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='wall_West'>
+          <pose frame=''>-10.0 0.0 3.48855 0 -0 0</pose>
+          <geometry>
+            <box>
+              <size>0.2 20.0 6.97771</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
         <collision name='rack1'>
           <pose frame=''>7.35056 1.7443 1.41643 0 -0 0</pose>
           <geometry>

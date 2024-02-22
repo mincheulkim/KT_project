@@ -1146,3 +1146,400 @@ class GaussianPolicy_DRLVO(nn.Module):
         self.action_scale = self.action_scale.to(device)
         self.action_bias = self.action_bias.to(device)
         return super(GaussianPolicy_DRLVO, self).to(device)      
+
+
+
+
+
+#### 240222 DRLVO_new
+
+class QNetwork_DRLVO_new(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim):
+        super(QNetwork_DRLVO_new, self).__init__()
+
+        # network parameters:
+        block = Bottleneck
+        layers = [2, 1, 1]
+        zero_init_residual=True
+        groups=1
+        width_per_group=64
+        replace_stride_with_dilation=None
+        norm_layer=None
+
+        # inherit the superclass properties/methods
+        #
+        # define the model
+        #
+        ################## ped_pos net model: ###################
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        self._norm_layer = norm_layer
+
+        self.inplanes = 64
+        self.dilation = 1
+        if replace_stride_with_dilation is None:
+            # each element in the tuple indicates if we should replace
+            # the 2x2 stride with a dilated convolution instead
+            replace_stride_with_dilation = [False, False, False]
+        if len(replace_stride_with_dilation) != 3:
+            raise ValueError("replace_stride_with_dilation should be None "
+                             "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
+        self.groups = groups
+        self.base_width = width_per_group
+        self.conv1 = nn.Conv2d(2, self.inplanes, kernel_size=2, stride=1, padding=1,
+                               bias=False)
+        self.bn1 = norm_layer(self.inplanes)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=1, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
+                                       dilate=replace_stride_with_dilation[0])
+        '''
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
+                                       dilate=replace_stride_with_dilation[1])
+        '''
+        
+        self.conv2_2 = nn.Sequential(
+            nn.Conv2d(in_channels=256, out_channels=128, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=(3, 3), stride=(1,1), padding=(1, 1)),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
+            nn.BatchNorm2d(256)
+        )
+        self.downsample2 = nn.Sequential(
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(1, 1), stride=(2,2), padding=(0, 0)),
+            nn.BatchNorm2d(256)
+        )
+        self.relu2 = nn.ReLU(inplace=True)
+        '''
+        self.conv3_2 = nn.Sequential(
+            nn.Conv2d(in_channels=512, out_channels=256, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=(3, 3), stride=(1,1), padding=(1, 1)),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
+            nn.BatchNorm2d(512)
+        )
+
+        self.downsample3 = nn.Sequential(
+            nn.Conv2d(in_channels=64, out_channels=512, kernel_size=(1, 1), stride=(4,4), padding=(0, 0)),
+            nn.BatchNorm2d(512)
+        )
+        '''                
+        self.relu3 = nn.ReLU(inplace=True)
+
+        # self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
+        #                               dilate=replace_stride_with_dilation[2])
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d): # add by xzt
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0) 
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight)
+
+        # Zero-initialize the last BN in each residual branch,
+        # so that the residual branch starts with zeros, and each residual block behaves like an identity.
+        # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+        if zero_init_residual:
+            for m in self.modules():
+                if isinstance(m, Bottleneck):
+                    nn.init.constant_(m.bn3.weight, 0)        
+
+
+        # Q1 architecture
+        self.linear1 = nn.Linear(280 + num_actions, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+        self.linear3 = nn.Linear(hidden_dim, 1)
+
+        # Q2 architecture
+        self.linear4 = nn.Linear(280 + num_actions, hidden_dim)
+        self.linear5 = nn.Linear(hidden_dim, hidden_dim)
+        self.linear6 = nn.Linear(hidden_dim, 1)
+
+        self.apply(weights_init_)
+        
+    def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
+        norm_layer = self._norm_layer
+        downsample = None
+        previous_dilation = self.dilation
+        if dilate:
+            self.dilation *= stride
+            stride = 1
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                conv1x1(self.inplanes, planes * block.expansion, stride),
+                norm_layer(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample, self.groups,
+                            self.base_width, previous_dilation, norm_layer))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes, groups=self.groups,
+                                base_width=self.base_width, dilation=self.dilation,
+                                norm_layer=norm_layer))
+
+        return nn.Sequential(*layers)        
+
+    def forward(self, state, action):
+        state_ori = state[:,:24]
+        ped_pos = state[:, -12800:]   # 12800
+        ped_in = ped_pos.reshape(-1,2,80,80)
+        
+        x = self.conv1(ped_in)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+
+        identity2 = self.downsample2(x)
+
+        x = self.layer2(x)
+
+        x = self.conv2_2(x)
+        x += identity2
+        x = self.relu2(x)
+        x = self.avgpool(x)
+        fusion_out = torch.flatten(x, 1)   # 512
+        #print(fusion_out.shape, state_ori.shape)
+                
+        state = torch.cat((fusion_out, state_ori), dim=-1)    # 256 + 24 = 280   -> 경량화 256
+                
+
+        xu = torch.cat([state, action], 1)
+       
+        x1 = F.relu(self.linear1(xu))
+        x1 = F.relu(self.linear2(x1))
+        x1 = self.linear3(x1)
+
+        x2 = F.relu(self.linear4(xu))
+        x2 = F.relu(self.linear5(x2))
+        x2 = self.linear6(x2)
+
+        return x1, x2
+
+
+class GaussianPolicy_DRLVO_new(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim, action_space=None):
+        super(GaussianPolicy_DRLVO_new, self).__init__()
+
+
+        # network parameters:
+        block = Bottleneck
+        layers = [2, 1, 1]
+        zero_init_residual=True
+        groups=1
+        width_per_group=64
+        replace_stride_with_dilation=None
+        norm_layer=None
+
+        # inherit the superclass properties/methods
+        #
+        # define the model
+        #
+        ################## ped_pos net model: ###################
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        self._norm_layer = norm_layer
+
+        self.inplanes = 64
+        self.dilation = 1
+        if replace_stride_with_dilation is None:
+            # each element in the tuple indicates if we should replace
+            # the 2x2 stride with a dilated convolution instead
+            replace_stride_with_dilation = [False, False, False]
+        if len(replace_stride_with_dilation) != 3:
+            raise ValueError("replace_stride_with_dilation should be None "
+                             "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
+        self.groups = groups
+        self.base_width = width_per_group
+        self.conv1 = nn.Conv2d(2, self.inplanes, kernel_size=2, stride=1, padding=1,
+                               bias=False)
+        self.bn1 = norm_layer(self.inplanes)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=1, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
+                                       dilate=replace_stride_with_dilation[0])
+        '''
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
+                                       dilate=replace_stride_with_dilation[1])
+        '''
+        
+        self.conv2_2 = nn.Sequential(
+            nn.Conv2d(in_channels=256, out_channels=128, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=(3, 3), stride=(1,1), padding=(1, 1)),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
+            nn.BatchNorm2d(256)
+        )
+        self.downsample2 = nn.Sequential(
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(1, 1), stride=(2,2), padding=(0, 0)),
+            nn.BatchNorm2d(256)
+        )
+        self.relu2 = nn.ReLU(inplace=True)
+        '''
+        self.conv3_2 = nn.Sequential(
+            nn.Conv2d(in_channels=512, out_channels=256, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=(3, 3), stride=(1,1), padding=(1, 1)),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=(1, 1), stride=(1,1), padding=(0, 0)),
+            nn.BatchNorm2d(512)
+        )
+
+        self.downsample3 = nn.Sequential(
+            nn.Conv2d(in_channels=64, out_channels=512, kernel_size=(1, 1), stride=(4,4), padding=(0, 0)),
+            nn.BatchNorm2d(512)
+        )
+        '''                
+        self.relu3 = nn.ReLU(inplace=True)
+
+        # self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
+        #                               dilate=replace_stride_with_dilation[2])
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d): # add by xzt
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0) 
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight)
+
+        # Zero-initialize the last BN in each residual branch,
+        # so that the residual branch starts with zeros, and each residual block behaves like an identity.
+        # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+        if zero_init_residual:
+            for m in self.modules():
+                if isinstance(m, Bottleneck):
+                    nn.init.constant_(m.bn3.weight, 0)         
+
+        
+        self.linear1 = nn.Linear(256+24, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+
+        self.mean_linear = nn.Linear(hidden_dim, num_actions)
+        self.log_std_linear = nn.Linear(hidden_dim, num_actions)
+
+        self.apply(weights_init_)
+
+        # action rescaling
+        if action_space is None:
+            self.action_scale = torch.tensor(1.)
+            self.action_bias = torch.tensor(0.)
+        else:
+            self.action_scale = torch.FloatTensor(
+                (action_space.high - action_space.low) / 2.)
+            self.action_bias = torch.FloatTensor(
+                (action_space.high + action_space.low) / 2.)
+            
+    def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
+        norm_layer = self._norm_layer
+        downsample = None
+        previous_dilation = self.dilation
+        if dilate:
+            self.dilation *= stride
+            stride = 1
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                conv1x1(self.inplanes, planes * block.expansion, stride),
+                norm_layer(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample, self.groups,
+                            self.base_width, previous_dilation, norm_layer))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes, groups=self.groups,
+                                base_width=self.base_width, dilation=self.dilation,
+                                norm_layer=norm_layer))
+
+        return nn.Sequential(*layers)        
+            
+
+    def forward(self, state):   # 20 + 4 + 12800
+        state_ori = state[:,:24]
+        
+        ped_pos = state[:, -12800:]   # 12800
+        ped_in = ped_pos.reshape(-1,2,80,80)
+        x = self.conv1(ped_in)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+
+        identity2 = self.downsample2(x)
+
+        x = self.layer2(x)
+
+        x = self.conv2_2(x)
+        x += identity2
+        x = self.relu2(x)
+        x = self.avgpool(x)
+        fusion_out = torch.flatten(x, 1)   # 512
+        #print(fusion_out.shape, state_ori.shape)
+                
+        state = torch.cat((fusion_out, state_ori), dim=-1)    # 256 + 24 = 280   -> 경량화 256
+        
+        #print(state.shape)
+        
+        
+        x = F.relu(self.linear1(state))
+        x = F.relu(self.linear2(x))
+        mean = self.mean_linear(x)
+        log_std = self.log_std_linear(x)
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_std
+
+    def sample(self, state):
+        mean, log_std = self.forward(state)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        y_t = torch.tanh(x_t)
+        action = y_t * self.action_scale + self.action_bias
+        log_prob = normal.log_prob(x_t)
+        # Enforcing Action Bound
+        log_prob -= torch.log(self.action_scale * (1 - y_t.pow(2)) + epsilon)
+        log_prob = log_prob.sum(1, keepdim=True)
+        mean = torch.tanh(mean) * self.action_scale + self.action_bias
+        return action, log_prob, mean
+
+    def to(self, device):
+        self.action_scale = self.action_scale.to(device)
+        self.action_bias = self.action_bias.to(device)
+        return super(GaussianPolicy_DRLVO_new, self).to(device)

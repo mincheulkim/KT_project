@@ -17,7 +17,9 @@ from numpy.linalg import norm
 
 from skimage.draw import polygon2mask
 
+
 show_animation = False
+
 
 class AStarPlanner:
 

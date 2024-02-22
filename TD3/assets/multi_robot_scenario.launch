@@ -1,7 +1,7 @@
 <!-- final version 220916-->
 
 <launch>
-<arg name="gui" value="false"/>
+<arg name="gui" value="False"/>
 
    <!-- Gazebo  -->
   <include file="$(find multi_robot_scenario)/launch/empty_world.launch" />   <!--RA-L 리부털 전-->
