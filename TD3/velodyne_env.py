@@ -16,6 +16,8 @@ import planner_astar # 230131
 import astar.pure_astar  # 230213
 import astar.pure_astar_RAL  # 240206
 from os import path
+from geometry_msgs.msg import Pose
+
 
 import dwa_pythonrobotics as dwa_pythonrobotics
 import numpy as np
@@ -37,7 +39,10 @@ from tf.transformations import euler_from_quaternion
 # 220915 image 처리
 from sensor_msgs.msg import Image, CameraInfo
 import cv2
-from cv_bridge import CvBridge, CvBridgeError    # CvBridge: connection btwn ROS and OpenCV interface
+#from cv_bridge import CvBridge, CvBridgeError    # CvBridge: connection btwn ROS and OpenCV interface
+
+from gazebo_msgs.srv import SpawnModel, DeleteModel, SetModelState, GetModelState
+
 
 GOAL_REACHED_DIST = 0.3
 COLLISION_DIST = 0.35
@@ -55,14 +60,17 @@ SCENARIO = 'DWA'    # TD3, warehouse, U, DWA, warehouse_RAL (240205 for rebuttal
 
 PURE_GP = False # 231020  pure astar planner(IS 및 social cost 미고려)
 #PURE_GP = True # SimpleGP 트리거
-#time_interval = 20
-time_interval = 2
+time_interval = 20
+#time_interval = 2
 
-viz_flow_map = True
+viz_flow_map = False
 
 debug = False    # evaluate단에서 활성화할 시 시점과 종점을 대칭으로 생성해줌
 
-evaluate = True   # qual figure 용. True로 할시, 각 시나리오 별 정해진 위치 + robot, ped_traj.txt 루트에 생성
+evaluate = False   # qual figure 용. True로 할시, 각 시나리오 별 정해진 위치 + robot, ped_traj.txt 로깅 기능.
+#evaluate = True   
+
+crowd_model = True # 240205 for RA-L Rebuttal stage. RVO나 다른 모델 불러오는 용.
 
 
 # Check if the random goal position is located on an obstacle and do not accept it if it is
@@ -369,7 +377,14 @@ class GazeboEnv:
         
         self.final_goal_pub = rospy.Publisher("/final_goal", Point, queue_size=1)   # 240214   
         
-        self.bridge = CvBridge()
+        
+        self.spawn_service = rospy.ServiceProxy('/gazebo/spawn_urdf_model', SpawnModel)
+        self.delete_service = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
+        self.state_service = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+        self.get_state_service = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
+        self.boxes = ['box_1', 'box_2', 'box_3', 'box_4']        
+        
+        #self.bridge = CvBridge()
         self.rgb_image_size = [512, 512]
         ## TODO raw_image from CCTV1, CCTV2, or robot  
         # ref: https://github.com/xie9187/Monocular-Obstacle-Avoidance/blob/master/D3QN/GazeboWorld.py
@@ -384,6 +399,9 @@ class GazeboEnv:
         self.path_as_input_no = 5  # 221010 5개 샘플
         self.path_as_init = None
         self.flow_map = None
+        
+        self.seq = 0
+        self.sub_goal = [[2,3],[7.5,-3.5],[-7.5,-4.0]]
         
 
     # Read velodyne pointcloud and turn it into distance data, then select the minimum value for each angle
@@ -414,6 +432,7 @@ class GazeboEnv:
         
     # 220915
     # ref: https://github.com/xie9187/Monocular-Obstacle-Avoidance/blob/master/D3QN/GazeboWorld.py
+    '''
     def GetRGBImageObservation(self):
         # convert ROS image message to to OpenCVcv2 image
         try:    
@@ -435,7 +454,7 @@ class GazeboEnv:
             raise e
         #self.resized_rgb_img.publish(resized_img)   # 220915 주석 처리. resized된 이미지를 publish
         return(cv_resized_img)
-    
+    '''
     def actor_poses_callback(self, actors):
         self.pedsim_agents_list = []
         self.pedsim_agents_list_oracle = []
@@ -485,12 +504,12 @@ class GazeboEnv:
                     self.pedsim_agents_list.append([x,y, vx, vy])  # 230131
                 # unlimited case는 if 삭제하고 아래줄 한칸 앞으로 땡기면 됨
             if PARTIAL_VIEW and SCENARIO=='warehouse_RAL':   # 240205 for RA-L Rebuttal stage
-                if (-9 <= x <= 9.5 and -6.0 <= y <= -2.6) or (-9 <= x <= 0 and 2.8 <= y <= 5.5) or (-3.6 <= x <= 5 and -2.6 <= y <= 5.5):      # CCTV 3개 alive(ORIGINAL)
+                if (-9 <= x <= 9.5 and -6.0 <= y <= -2.6) or (-4.2 <= x <= 5 and -3.6 <= y <= 5.5) or (-0.5 <= x <= 2.0 and -2.1 <= y <= 9.5): 
                     self.pedsim_agents_list.append([x,y, vx, vy])
 
         #print('페드심 리스트: ', self.pedsim_agents_list)
             
-            
+    '''
     def GetRGBImageObservation(self):
         try:
             # self.camera_image is an ndarray with shape (h, w, c) -> (228, 304, 3)
@@ -513,11 +532,16 @@ class GazeboEnv:
             raise e
         #self.resized_rgb_img.publish(resized_img)   # 220915 주석 처리. resized된 이미지를 publish
         return(cv_resized_img)
-
+    '''        
 
     # Perform an action and read a new state
     def step(self, action, episode_steps):        
         target = False
+        
+        if SCENARIO == 'warehouse_RAL':
+            self.goal_x = self.sub_goal[self.seq][0]
+            self.goal_y = self.sub_goal[self.seq][1]
+        
         # 221005 이동하기 전 거리
         distance = np.linalg.norm([self.odom_x - self.goal_x, self.odom_y - self.goal_y])
         self.pre_distance = copy.deepcopy(distance)
@@ -534,6 +558,9 @@ class GazeboEnv:
         final_goal_step.x = self.goal_x
         final_goal_step.y = self.goal_y
         self.final_goal_pub.publish(final_goal_step)    # 240214  
+        
+        if crowd_model:        
+            self.move_boxes()
 
         rospy.wait_for_service("/gazebo/unpause_physics")
         try:
@@ -611,12 +638,20 @@ class GazeboEnv:
         if theta < -np.pi:
             theta = -np.pi - theta
             theta = np.pi - theta
-
-        # Detect if the goal has been reached and give a large positive reward
-        if distance < GOAL_REACHED_DIST:
-            target = True
-            done = True
-        
+            
+        if SCENARIO == 'warehouse_RAL':        
+            # Detect if the goal has been reached and give a large positive reward
+            if distance < GOAL_REACHED_DIST and self.seq == 2:
+                target = True
+                done = True
+            elif distance < (GOAL_REACHED_DIST+0.35) and self.seq != 2:
+                self.seq += 1
+        else:
+            if distance < GOAL_REACHED_DIST:
+                target = True
+                done = True
+                
+    
         # 221019
         local_goal = self.get_local_goal(self.odom_x, self.odom_y, self.goal_x, self.goal_y, self.euler)
         #robot_state = [local_goal[0], local_goal[1], action[0], action[1]]    # local_gx, local_gy
@@ -700,7 +735,7 @@ class GazeboEnv:
                         gx = int((self.goal_x+map_bias)/resolution)
                         gy = int((self.goal_y+map_bias)/resolution)
                         
-                        #self.pause()   # 240206 한번 해제해 볼까?
+                        #self.pause()   # 240206 한번 해제해 볼까? 240221 겁나 드려지는 대신 싱ㅋ느가 맞음
                         if PURE_GP:
                             self.pedsim_agents_list = []    # Pure Global planner 하고 싶으면 주석해제
                         #rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)
@@ -726,13 +761,13 @@ class GazeboEnv:
                         sy = int((self.odom_y+map_bias)/resolution)
                         gx = int((self.goal_x+map_bias)/resolution)
                         gy = int((self.goal_y+map_bias)/resolution)
-                        self.pause()
+                        #self.pause()   # 이거임. 이거로 느려지는 거임
                         if PURE_GP:
                             self.pedsim_agents_list = []   
                         #rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, self.odom_vx, angle, skew_x, skew_y, self.pedsim_agents_list)  # ??
                         rx, ry, flow_map = self.a_star.planning(sx, sy, gx, gy, vel_cmd.linear.x, angle, skew_x, skew_y, self.pedsim_agents_list)
                         self.flow_map = flow_map   # RViz에 보여주기 위해 저장
-                        self.unpause()
+                        #self.unpause()
                         
                         final_path = []
                         for path in zip (rx, ry):
@@ -1006,6 +1041,7 @@ class GazeboEnv:
         #2. 매 스탭마다, 현재 로봇과 사람의 가장 가까운 거리 체크
 
     def reset(self):
+        self.seq = 0
         time.sleep(TIME_DELTA)  # 필요?
         # Resets the state of the environment and returns an initial observation.
         rospy.wait_for_service("/gazebo/reset_world")
@@ -1055,8 +1091,13 @@ class GazeboEnv:
         
         if evaluate:
             if SCENARIO=='warehouse_RAL':
-                x = 0
-                y = -9
+                #x = 0
+                #y = -9
+                #x = -8
+                #y = 9
+                #x = 8
+                x = -4
+                y = 9
             else:
                 #x = 2.5         #Holding
                 #y = -4.5
@@ -1073,6 +1114,9 @@ class GazeboEnv:
         self.change_goal(x, y)    # 240212
         # randomly scatter boxes in the environment
         #self.random_box()   # 220919 dynamic obstacle 추가로 일단 해제
+        if crowd_model:
+            self.delete_boxes()
+            self.spawn_boxes()
         
         if debug:
             goal_ok = False
@@ -1090,8 +1134,10 @@ class GazeboEnv:
                 
         if evaluate:
             if SCENARIO=='warehouse_RAL':
-                self.goal_x = 0
-                self.goal_y = 9
+                #self.goal_x = 0
+                #self.goal_y = 9
+                self.goal_x = 0.5
+                self.goal_y = -9
             else:
                 self.goal_x = 0    # holding
                 self.goal_y = 4.5
@@ -1846,7 +1892,7 @@ class GazeboEnv:
             marker8.ns = "square"
             marker8.id = i
             marker8.type = marker.CUBE
-            marker5.action = marker.ADD
+            marker8.action = marker.ADD
             marker8.lifetime = rospy.Duration()
             marker8.color.a = 1.0
             marker8.color.r = 0.1
@@ -2259,3 +2305,49 @@ class GazeboEnv:
         diff_y = gy-ry
         to_go_rot = np.arctan2(diff_y, diff_x)
         return [uu[0], -uu[1]]    
+    
+    
+    def spawn_boxes(self):
+        box_urdf = """<?xml version="1.0"?>
+        <robot name="simple_box">
+        <link name="link">
+        <inertial>
+            <mass value="1.0"/>
+            <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+        </inertial>
+        <visual>
+            <geometry>
+            <box size="0.3 0.3 1.5"/>
+            </geometry>
+        </visual>
+        <collision>
+            <geometry>
+            <box size="0.3 0.3 0.5"/>
+            </geometry>
+        </collision>
+        </link>
+        </robot>"""
+        for i, box_name in enumerate(self.boxes):
+            pose = Pose()
+            pose.position.x = np.random.uniform(-5, 5)
+            pose.position.y = np.random.uniform(-5, 5)
+            pose.position.z = 0.5
+            self.spawn_service(box_name, box_urdf, "", pose, "world")
+    
+    def move_boxes(self):
+        for box_name in self.boxes:
+            # 현재 박스 상태 가져오기
+            current_state = self.get_state_service(box_name, "world")
+            # ModelState 메시지 준비
+            state_msg = ModelState()
+            state_msg.model_name = box_name
+            state_msg.pose = current_state.pose  # 현재 위치 및 방향을 가져옴
+            # 위치 업데이트
+            state_msg.pose.position.x += 0.1  # 예시로 1씩 증가
+            state_msg.pose.position.y += 0.1
+            # 방향 업데이트가 필요한 경우 여기서 처리
+            self.state_service(state_msg)
+
+    def delete_boxes(self):
+        for box_name in self.boxes:
+            self.delete_service(box_name)

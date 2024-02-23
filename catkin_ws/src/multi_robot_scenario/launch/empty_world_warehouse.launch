@@ -1,5 +1,5 @@
 <launch>
-
+  <!--240221 사람 크기 타입에 따라 조정: spawn_pedsim_agents.py및 actor_model.sdf 확인-->
   <!-- these are the arguments you can pass this launch file, for example paused:=true -->
   <arg name="paused" default="false"/>
   <arg name="use_sim_time" default="true"/>
@@ -27,8 +27,8 @@
   
   <param name="camera_description2" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv2.xacro'"/>
   <node name="camera_spawn2" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param camera_description2 -model camera2 -x -5.3 -y -5.3 -z 2.0"/>
-  <param name="camera_description3" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv3.xacro'"/>
-  <node name="camera_spawn3" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param camera_description3 -model camera3 -x 5.3 -y -5.3 -z 2.0"/>
+  <param name="camera_description3" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv3_warehouse.xacro'"/>
+  <node name="camera_spawn3" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param camera_description3 -model camera3 -x 0.5 -y -2.3 -z 2.0"/>
   <param name="camera_description4" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv4_warehouse.xacro'"/>
   <node name="camera_spawn4" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param camera_description4 -model camera4 -x 2.5 -y 5.5 -z 2.0"/>
   <param name="camera_description5" command="$(find xacro)/xacro --inorder '$(find multi_robot_scenario)/xacro/camera/cctv5_warehouse.xacro'"/>
